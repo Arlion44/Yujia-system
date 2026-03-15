@@ -119,7 +119,7 @@ def login_page():
             margin-left: auto; /* 确保在 flex 布局下也能靠右 */
         }
     </style>
-    """, unsafe_allow_html=True)
+     """, unsafe_allow_html=True)
     
     # 标题：正楷、蓝色、居中，底部外边距 40px (约等于两行间隔)
     st.markdown("""
