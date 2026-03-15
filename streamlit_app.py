@@ -26,16 +26,18 @@ def load_data():
         if data: 
             df = pd.DataFrame(data)
             df = df.fillna("") 
-            cols_to_str = ["requirements", "sender", "sample_type", "progress", "invoice_status", "list_status", "uploaded_files"]
+            # 把新加的列也放入字符串转换列表，防止格式报错
+            cols_to_str = ["requirements", "completion_date", "sender", "sample_type", "progress", "invoice_status", "payment_status", "list_status", "uploaded_files"]
             for col in cols_to_str:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
             df = df.sort_values('id').reset_index(drop=True)
             return df
         else: 
+            # 空数据库也包含新列
             return pd.DataFrame(columns=[
                 "id", "reception_date", "sender", "sample_type", "quantity",
-                "progress", "requirements", "invoice_status", "list_status", "uploaded_files"
+                "progress", "requirements", "completion_date", "invoice_status", "payment_status", "list_status", "uploaded_files"
             ])
     except Exception as e:
         st.error(f"读取云端数据失败: {e}")
@@ -111,7 +113,8 @@ def scientific_staff_page():
             with col1:
                 reception_date = st.date_input("接收时间", value=date.today())
                 sender = st.text_input("寄样人")
-                sample_type = st.text_input("样品类型", placeholder="请输入（例如：土壤湿样、土壤干样、植物鲜样...）")
+                # 样品类型已修改为文本框，自由输入
+                sample_type = st.text_input("样品类型", placeholder="请输入（例如：血清、C2C12细胞...）")
                 quantity = st.number_input("样品数量", min_value=1, step=1)
             with col2:
                 progress = st.selectbox("当前进度", ["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"])
@@ -135,14 +138,16 @@ def scientific_staff_page():
                     new_files_list.append({"original_name": file.name, "filename": unique_filename})
                 
                 new_data = {
-                    "id": len(df) + 1,
+                    "id": len(df) + 1 if len(df) > 0 else 1,
                     "reception_date": reception_date.strftime(DATE_FORMAT),
                     "sender": sender,
                     "sample_type": sample_type,
                     "quantity": quantity,
                     "progress": progress,
                     "requirements": requirements,
+                    "completion_date": "", # 新记录默认完成时间为空
                     "invoice_status": "未开具",
+                    "payment_status": "否", # 新记录默认未收款
                     "list_status": "未开具",
                     "uploaded_files": json.dumps(new_files_list)
                 }
@@ -160,11 +165,14 @@ def scientific_staff_page():
             "id": "ID",
             "reception_date": st.column_config.DateColumn("接收时间", format="YYYY-MM-DD", disabled=True),
             "sender": st.column_config.TextColumn("寄样人", disabled=True),
+            # 样品类型解除了锁定，现在可以在表格中直接双击编辑了
             "sample_type": st.column_config.TextColumn("样品类型"),
             "quantity": st.column_config.NumberColumn("样品数量", disabled=True),
             "progress": st.column_config.SelectboxColumn("当前进度", options=["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"]),
             "requirements": st.column_config.TextColumn("样品处理要求"),
+            "completion_date": st.column_config.TextColumn("完成时间"), # 新增列
             "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
+            "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]), # 新增列
             "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
             "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
         },
@@ -195,10 +203,13 @@ def finance_page():
     df = load_data()
     
     st.subheader("📝 财务待办清单")
-    st.write("以下是未完全开具发票或清单的样品批次：")
+    st.write("以下是未完全开具发票、清单，或未收款的样品批次：")
 
+    # 更新过滤逻辑，未收款的也显示在待办里
     pending_finance_df = df[
-        (df['invoice_status'] == '未开具') | (df['list_status'] == '未开具')
+        (df['invoice_status'] == '未开具') | 
+        (df['list_status'] == '未开具') | 
+        (df['payment_status'] == '否')
     ]
 
     edited_finance_df = st.data_editor(
@@ -211,7 +222,9 @@ def finance_page():
             "quantity": st.column_config.NumberColumn("样品数量", disabled=True),
             "progress": st.column_config.TextColumn("当前进度", disabled=True),
             "requirements": st.column_config.TextColumn("样品处理要求", disabled=True),
+            "completion_date": st.column_config.TextColumn("完成时间", disabled=True),
             "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
+            "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]),
             "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
             "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
         },
@@ -237,10 +250,11 @@ def finance_page():
                 "sample_type": st.column_config.TextColumn("样品类型", disabled=True),
                 "progress": st.column_config.TextColumn("当前进度", disabled=True),
                 "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
+                "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]),
                 "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
                 "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
             },
-            disabled=["id", "reception_date", "sender", "sample_type", "quantity", "progress", "requirements", "uploaded_files"],
+            disabled=["id", "reception_date", "sender", "sample_type", "quantity", "progress", "requirements", "completion_date", "uploaded_files"],
             key="all_finance_editor"
         )
         
