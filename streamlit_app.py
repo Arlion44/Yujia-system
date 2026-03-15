@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import os
 from datetime import date
 import json
 from supabase import create_client, Client
@@ -13,43 +12,27 @@ def init_connection():
     return create_client(url, key)
 
 supabase = init_connection()
+
 # --- 配置和常数 ---
-DATA_FILE = "sample_management_data.csv"
-UPLOADS_DIR = "uploads"
-USER_CREDENTIALS_FILE = "users.json" # 用于存储简单加密的密码
 DATE_FORMAT = "%Y-%m-%d"
-
-# 初始化数据和文件夹
-if not os.path.exists(DATA_FILE):
-    # 创建具有所有必需字段的初始数据
-    df = pd.DataFrame(columns=[
-        "id", "reception_date", "sender", "sample_type", "quantity",
-        "progress", "requirements", "invoice_status", "list_status", "uploaded_files"
-    ])
-    df.to_csv(DATA_FILE, index=False)
-
-if not os.path.exists(UPLOADS_DIR):
-    os.makedirs(UPLOADS_DIR)
 
 # --- 数据操作函数 ---
 def load_data():
     """从 Supabase 云端数据库加载数据。"""
     try:
-        # 从 samples 表中查询所有数据
         response = supabase.table("samples").select("*").execute()
         data = response.data
         
-        if data: # 如果数据库里有数据
+        if data: 
             df = pd.DataFrame(data)
             df = df.fillna("") 
             cols_to_str = ["requirements", "sender", "sample_type", "progress", "invoice_status", "list_status", "uploaded_files"]
             for col in cols_to_str:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
-            # 确保按 ID 排序
             df = df.sort_values('id').reset_index(drop=True)
             return df
-        else: # 如果数据库是空的，返回带有标准列名的空表格
+        else: 
             return pd.DataFrame(columns=[
                 "id", "reception_date", "sender", "sample_type", "quantity",
                 "progress", "requirements", "invoice_status", "list_status", "uploaded_files"
@@ -61,33 +44,23 @@ def load_data():
 def save_data(df):
     """将数据保存到 Supabase 云端数据库。"""
     try:
-        # 将 Pandas 数据表格转换为字典列表格式
         records = df.to_dict('records')
         if records:
-            # upsert 方法：如果 ID 存在就更新，不存在就插入新行
             supabase.table("samples").upsert(records).execute()
     except Exception as e:
         st.error(f"保存云端数据失败: {e}")
 
-# --- 身份验证（简单原型） ---
-# 注意：在生产环境中，必须使用安全的、哈希化的密码存储和专业的认证方案。
-def init_users():
-    """初始化预定义的用户凭据。"""
+# --- 身份验证 ---
+def check_login(username, password):
+    """简单的登录检查。"""
+    
+    # 🚨 在这里修改您的密码！
     users = {
         "wang_xiaoliang": {"password": "password_wx", "role": "scientific"},
         "peng_yutao": {"password": "password_py", "role": "scientific"},
         "zhou_cuiying": {"password": "password_zc", "role": "finance"}
     }
-    with open(USER_CREDENTIALS_FILE, 'w') as f:
-        json.dump(users, f)
-
-if not os.path.exists(USER_CREDENTIALS_FILE):
-    init_users()
-
-def check_login(username, password):
-    """简单的登录检查。"""
-    with open(USER_CREDENTIALS_FILE, 'r') as f:
-        users = json.load(f)
+    
     if username in users and users[username]["password"] == password:
         return users[username]["role"]
     return None
@@ -100,7 +73,6 @@ def display_uploaded_files(files_json):
     else:
         files = json.loads(files_json)
         for file_info in files:
-            # 直接从 Supabase 获取公开下载链接
             public_url = supabase.storage.from_('uploads').get_public_url(file_info["filename"])
             st.markdown(f"[⬇️ 点击下载：{file_info['original_name']}]({public_url})")
 
@@ -122,7 +94,6 @@ def login_page():
                 st.session_state.username = username
                 st.session_state.role = role
                 st.success(f"登录成功！欢迎，{username}")
-                # 重新加载应用程序以应用状态更改
                 st.rerun()
             else:
                 st.error("用户名或密码错误。")
@@ -134,7 +105,6 @@ def scientific_staff_page():
     st.title(f"科研业务管理 - 欢迎，{st.session_state.username}")
     df = load_data()
 
-    # --- 部分 1：录入新样品 ---
     with st.expander("🆕 录入新样品接收情况", expanded=True):
         with st.form("new_sample_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
@@ -148,17 +118,13 @@ def scientific_staff_page():
                 requirements = st.text_area("样品处理要求/注意事项")
                 
             uploaded_files = st.file_uploader("上传相关文件 (如寄样清单、协议、实验结果)", accept_multiple_files=True)
-            
             submit_sample = st.form_submit_button("保存新样品记录")
             
             if submit_sample:
-                # 处理文件上传
                 new_files_list = []
                 for file in uploaded_files:
-                    # 修改了这里，且保证了对齐
                     unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
                     
-                    # 将上传的文件转换为字节流并推送到 Supabase 的 'uploads' 存储桶
                     file_bytes = file.getvalue()
                     supabase.storage.from_('uploads').upload(
                         path=unique_filename,
@@ -168,7 +134,6 @@ def scientific_staff_page():
                     
                     new_files_list.append({"original_name": file.name, "filename": unique_filename})
                 
-                # 创建新记录
                 new_data = {
                     "id": len(df) + 1,
                     "reception_date": reception_date.strftime(DATE_FORMAT),
@@ -177,20 +142,18 @@ def scientific_staff_page():
                     "quantity": quantity,
                     "progress": progress,
                     "requirements": requirements,
-                    "invoice_status": "未开具", # 默认状态
-                    "list_status": "未开具",   # 默认状态
-                    "uploaded_files": json.dumps(new_files_list) # 以 JSON 字符串存储文件列表
+                    "invoice_status": "未开具",
+                    "list_status": "未开具",
+                    "uploaded_files": json.dumps(new_files_list)
                 }
                 df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
                 save_data(df)
                 st.success("新样品记录已保存并上传相关文件！")
-                st.rerun() # 刷新以显示新数据
+                st.rerun()
 
-    # --- 部分 2：查看和更新所有样品 ---
     st.divider()
     st.subheader("📋 所有样品概览")
     
-    # 允许在数据帧中直接编辑“进度”和“要求”
     edited_df = st.data_editor(
         df,
         column_config={
@@ -214,7 +177,6 @@ def scientific_staff_page():
         st.success("更改已保存。")
         st.rerun()
 
-    # --- 部分 3：查看单个样品的具体文件 ---
     st.divider()
     st.subheader("📁 查看特定样品的上传文件")
     sample_to_view_files = st.selectbox("选择要查看文件的样品 ID", edited_df['id'].unique(), index=None, placeholder="选择一个 ID...")
@@ -235,12 +197,10 @@ def finance_page():
     st.subheader("📝 财务待办清单")
     st.write("以下是未完全开具发票或清单的样品批次：")
 
-    # 过滤出需要注意的样品（即，未完成财务流程的样品）
     pending_finance_df = df[
         (df['invoice_status'] == '未开具') | (df['list_status'] == '未开具')
     ]
 
-    # 允许直接编辑“发票状态”和“清单状态”
     edited_finance_df = st.data_editor(
         pending_finance_df,
         column_config={
@@ -261,16 +221,13 @@ def finance_page():
     col1, col2 = st.columns([1, 4])
     with col1:
         if st.button("保存财务状态更新"):
-            # 将编辑后的数据合并回主数据帧
             df.update(edited_finance_df)
             save_data(df)
             st.success("财务状态已成功更新！")
             st.rerun()
 
-    # --- 部分 2：查看所有财务记录 ---
     st.divider()
     with st.expander("📊 查看所有财务记录汇总"):
-        # 显示完整的、未经过滤的数据帧，只允许对“发票状态”和“清单状态”进行编辑
         edited_all_finance_df = st.data_editor(
             df,
             column_config={
@@ -296,7 +253,6 @@ def finance_page():
 # --- 应用程序主入口 ---
 # ==========================================
 if __name__ == '__main__':
-    # 初始化 session 状态
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
     if 'username' not in st.session_state:
@@ -304,11 +260,9 @@ if __name__ == '__main__':
     if 'role' not in st.session_state:
         st.session_state.role = None
 
-    # 根据登录状态显示页面
     if not st.session_state.logged_in:
         login_page()
     else:
-        # 添加侧边栏导航和注销
         st.sidebar.title("玉佳生物管理")
         st.sidebar.markdown(f"**用户:** {st.session_state.username}")
         st.sidebar.markdown(f"**角色:** {'科研' if st.session_state.role == 'scientific' else '财务'}")
@@ -319,7 +273,6 @@ if __name__ == '__main__':
             st.session_state.role = None
             st.rerun()
 
-        # 根据角色重定向到特定页面
         if st.session_state.role == "scientific":
             scientific_staff_page()
         elif st.session_state.role == "finance":
