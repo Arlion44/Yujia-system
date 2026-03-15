@@ -78,57 +78,123 @@ def display_uploaded_files(files_json):
 # ==========================================
 # --- 登录界面 ---
 # ==========================================
+import streamlit as st
+import pandas as pd
+from datetime import date
+import json
+from supabase import create_client, Client
+
+# --- 1. 初始化 Supabase 客户端 ---
+@st.cache_resource
+def init_connection():
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+supabase = init_connection()
+DATE_FORMAT = "%Y-%m-%d"
+
+# --- 2. 身份验证逻辑 ---
+def check_login(username, password):
+    users = {
+        "wangxiaoliang": {"password": "Yujia@003", "role": "scientific"},
+        "pengyutao": {"password": "Yujia@002", "role": "scientific"},
+        "zhoucuiying": {"password": "Yujia@001", "role": "finance"}
+    }
+    if username in users and users[username]["password"] == password:
+        return users[username]["role"]
+    return None
+
+# --- 3. 数据加载与保存 (保持原有逻辑) ---
+def load_data():
+    try:
+        response = supabase.table("samples").select("*").execute()
+        data = response.data
+        if data: 
+            df = pd.DataFrame(data)
+            df = df.fillna("") 
+            cols_to_str = ["requirements", "completion_date", "sender", "sample_type", "progress", "invoice_status", "payment_status", "list_status", "uploaded_files"]
+            for col in cols_to_str:
+                if col in df.columns: df[col] = df[col].astype(str)
+            return df.sort_values("id").reset_index(drop=True)
+        else: 
+            return pd.DataFrame(columns=["id", "reception_date", "sender", "sample_type", "quantity", "progress", "requirements", "completion_date", "invoice_status", "payment_status", "list_status", "uploaded_files"])
+    except Exception as e:
+        st.error(f"读取失败: {e}")
+        return pd.DataFrame()
+
+def save_data(df):
+    try:
+        records = df.to_dict("records")
+        if records: supabase.table("samples").upsert(records).execute()
+    except Exception as e:
+        st.error(f"保存失败: {e}")
+
+# ==========================================
+# --- 4. 修改后的登录界面 ---
+# ==========================================
 def login_page():
-    # 注入自定义 CSS 来修改登录界面的样式
-    custom_css = """
-    <style>
-        /* 1. 整个页面背景设置为嫩绿色 */
-        [data-testid="stAppViewContainer"] {
-            background-color: #e8f5e9;
-        }
-        
-        /* 隐藏顶部的 Streamlit 默认装饰条，避免影响居中视觉 */
-        [data-testid="stHeader"] {
-            display: none;
-        }
-
-        /* 2. 让登录框在网页中居中，并限制最大宽度 */
-        .block-container {
-            padding-top: 15vh !important;
-            max-width: 600px !important;
-        }
-
-        /* 3. 设置表单为白色背景，加上圆角和阴影 */
-        [data-testid="stForm"] {
-            background-color: #ffffff;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            border: none;
-        }
-
-        /* 4. 登录按钮靠右对齐 */
-        [data-testid="stFormSubmitButton"] {
-            text-align: right; /* 让容器内的按钮右对齐 */
-            display: block;
-            margin-top: 20px;
-        }
-        
-        /* 按钮本身的微调 */
-        div[data-testid="stFormSubmitButton"] button {
-            margin-left: auto; /* 确保在 flex 布局下也能靠右 */
-        }
-    </style>
-     """, unsafe_allow_html=True)
-    
-    # 标题：正楷、蓝色、居中，底部外边距 40px (约等于两行间隔)
+    # 注入纯净版 CSS
     st.markdown("""
-        <h2 style='text-align: center; color: #1976D2; font-family: "楷体", "KaiTi", "STKaiti", serif; font-size: 48px; margin-top: 0; margin-bottom: 40px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>
-            玉佳生物科研业务管理系统
-        </h2>
-    """, unsafe_allow_html=True)
+    <style>
+    /* 全局背景：嫩绿色 */
+    [data-testid="stAppViewContainer"] {
+        background-color: #e8f5e9 !important;
+    }
     
-    # Streamlit 的 st.form 自带 Enter 键提交功能
+    /* 隐藏顶部装饰条 */
+    [data-testid="stHeader"] {
+        background: rgba(0,0,0,0);
+    }
+
+    /* 居中容器调整：增加宽度防止标题显示不全 */
+    .block-container {
+        padding-top: 12vh !important;
+        max-width: 650px !important;
+    }
+
+    /* 登录表单白框 */
+    [data-testid="stForm"] {
+        background-color: #ffffff !important;
+        padding: 40px !important;
+        border-radius: 15px !important;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
+        border: none !important;
+    }
+
+    /* 关键修改：按钮容器强制右对齐 */
+    div[data-testid="stFormSubmitButton"] {
+        text-align: right !important;
+        margin-top: 20px !important;
+    }
+
+    /* 覆盖 Streamlit 默认的按钮宽度 */
+    div[data-testid="stFormSubmitButton"] > button {
+        display: inline-block !important;
+        width: auto !important;
+        padding-left: 30px !important;
+        padding-right: 30px !important;
+        margin-left: auto !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 标题：正楷、蓝色、居中、2行间距、解决显示不全
+    st.markdown("""
+        <div style="text-align: center; width: 100%; margin-bottom: 40px;">
+            <h1 style='
+                color: #1976D2; 
+                font-family: "楷体", "KaiTi", "STKaiti", serif; 
+                font-size: 32px; 
+                white-space: nowrap;
+                margin: 0;
+                padding: 10px 0;
+            '>
+                玉佳生物科研业务管理系统
+            </h1>
+        </div>
+    """, unsafe_allow_html=True)
+
     with st.form("login_form"):
         username = st.text_input("用户名")
         password = st.text_input("密码", type="password")
@@ -140,10 +206,24 @@ def login_page():
                 st.session_state.logged_in = True
                 st.session_state.username = username
                 st.session_state.role = role
-                st.success(f"登录成功！欢迎，{username}")
                 st.rerun()
             else:
                 st.error("用户名或密码错误。")
+
+# --- 5. 主逻辑入口 (保持不变) ---
+if __name__ == "__main__":
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+    
+    if not st.session_state.logged_in:
+        login_page()
+    else:
+        # 这里接您原有的 scientific_staff_page() 或 finance_page()
+        st.sidebar.title("管理系统")
+        st.write(f"欢迎回来, {st.session_state.username}")
+        if st.sidebar.button("注销"):
+            st.session_state.logged_in = False
+            st.rerun()
 
 # ==========================================
 # --- 科研人员页面 (Scientific Staff) ---
