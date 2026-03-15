@@ -26,7 +26,6 @@ def load_data():
         if data: 
             df = pd.DataFrame(data)
             df = df.fillna("") 
-            # 把新加的列也放入字符串转换列表，防止格式报错
             cols_to_str = ["requirements", "completion_date", "sender", "sample_type", "progress", "invoice_status", "payment_status", "list_status", "uploaded_files"]
             for col in cols_to_str:
                 if col in df.columns:
@@ -34,7 +33,6 @@ def load_data():
             df = df.sort_values('id').reset_index(drop=True)
             return df
         else: 
-            # 空数据库也包含新列
             return pd.DataFrame(columns=[
                 "id", "reception_date", "sender", "sample_type", "quantity",
                 "progress", "requirements", "completion_date", "invoice_status", "payment_status", "list_status", "uploaded_files"
@@ -56,7 +54,6 @@ def save_data(df):
 def check_login(username, password):
     """简单的登录检查。"""
     
-    # 🚨 在这里修改您的密码！
     users = {
         "wang_xiaoliang": {"password": "password_wx", "role": "scientific"},
         "peng_yutao": {"password": "password_py", "role": "scientific"},
@@ -107,13 +104,19 @@ def scientific_staff_page():
     st.title(f"科研业务管理 - 欢迎，{st.session_state.username}")
     df = load_data()
 
-    with st.expander("🆕 录入新样品接收情况", expanded=True):
+    # 创建三个独立的标签页
+    tab1, tab2, tab3 = st.tabs(["🆕 样品录入", "📋 样品概览", "📁 查看上传文件"])
+
+    # -----------------------------------
+    # 标签页 1：样品录入界面
+    # -----------------------------------
+    with tab1:
+        st.subheader("录入新样品接收情况")
         with st.form("new_sample_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
                 reception_date = st.date_input("接收时间", value=date.today())
                 sender = st.text_input("寄样人")
-                # 样品类型已修改为文本框，自由输入
                 sample_type = st.text_input("样品类型", placeholder="请输入（例如：血清、C2C12细胞...）")
                 quantity = st.number_input("样品数量", min_value=1, step=1)
             with col2:
@@ -145,9 +148,9 @@ def scientific_staff_page():
                     "quantity": quantity,
                     "progress": progress,
                     "requirements": requirements,
-                    "completion_date": "", # 新记录默认完成时间为空
+                    "completion_date": "", 
                     "invoice_status": "未开具",
-                    "payment_status": "否", # 新记录默认未收款
+                    "payment_status": "否", 
                     "list_status": "未开具",
                     "uploaded_files": json.dumps(new_files_list)
                 }
@@ -156,44 +159,48 @@ def scientific_staff_page():
                 st.success("新样品记录已保存并上传相关文件！")
                 st.rerun()
 
-    st.divider()
-    st.subheader("📋 所有样品概览")
-    
-    edited_df = st.data_editor(
-        df,
-        column_config={
-            "id": "ID",
-            "reception_date": st.column_config.DateColumn("接收时间", format="YYYY-MM-DD", disabled=True),
-            "sender": st.column_config.TextColumn("寄样人", disabled=True),
-            # 样品类型解除了锁定，现在可以在表格中直接双击编辑了
-            "sample_type": st.column_config.TextColumn("样品类型"),
-            "quantity": st.column_config.NumberColumn("样品数量", disabled=True),
-            "progress": st.column_config.SelectboxColumn("当前进度", options=["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"]),
-            "requirements": st.column_config.TextColumn("样品处理要求"),
-            "completion_date": st.column_config.TextColumn("完成时间"), # 新增列
-            "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
-            "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]), # 新增列
-            "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
-            "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
-        },
-        num_rows="dynamic",
-        key="scientific_editor"
-    )
+    # -----------------------------------
+    # 标签页 2：样品概览界面
+    # -----------------------------------
+    with tab2:
+        st.subheader("所有样品状态概览与编辑")
+        edited_df = st.data_editor(
+            df,
+            column_config={
+                "id": "ID",
+                "reception_date": st.column_config.DateColumn("接收时间", format="YYYY-MM-DD", disabled=True),
+                "sender": st.column_config.TextColumn("寄样人", disabled=True),
+                "sample_type": st.column_config.TextColumn("样品类型"),
+                "quantity": st.column_config.NumberColumn("样品数量", disabled=True),
+                "progress": st.column_config.SelectboxColumn("当前进度", options=["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"]),
+                "requirements": st.column_config.TextColumn("样品处理要求"),
+                "completion_date": st.column_config.TextColumn("完成时间"), 
+                "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
+                "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]), 
+                "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
+                "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
+            },
+            num_rows="dynamic",
+            key="scientific_editor"
+        )
 
-    if st.button("保存对样品状态的更改"):
-        save_data(edited_df)
-        st.success("更改已保存。")
-        st.rerun()
+        if st.button("保存对样品状态的更改"):
+            save_data(edited_df)
+            st.success("更改已保存。")
+            st.rerun()
 
-    st.divider()
-    st.subheader("📁 查看特定样品的上传文件")
-    sample_to_view_files = st.selectbox("选择要查看文件的样品 ID", edited_df['id'].unique(), index=None, placeholder="选择一个 ID...")
-    
-    if sample_to_view_files is not None:
-        sample_row = edited_df[edited_df['id'] == sample_to_view_files].iloc[0]
-        st.write(f"**寄样人:** {sample_row['sender']}, **类型:** {sample_row['sample_type']}")
-        st.write("**已上传文件列表：**")
-        display_uploaded_files(sample_row['uploaded_files'])
+    # -----------------------------------
+    # 标签页 3：查看上传文件界面
+    # -----------------------------------
+    with tab3:
+        st.subheader("查看特定样品的上传文件")
+        sample_to_view_files = st.selectbox("选择要查看文件的样品 ID", df['id'].unique(), index=None, placeholder="选择一个 ID...")
+        
+        if sample_to_view_files is not None:
+            sample_row = df[df['id'] == sample_to_view_files].iloc[0]
+            st.write(f"**寄样人:** {sample_row['sender']}, **类型:** {sample_row['sample_type']}")
+            st.write("**已上传文件列表：**")
+            display_uploaded_files(sample_row['uploaded_files'])
 
 # ==========================================
 # --- 财务人员页面 (Finance Staff) ---
@@ -205,7 +212,6 @@ def finance_page():
     st.subheader("📝 财务待办清单")
     st.write("以下是未完全开具发票、清单，或未收款的样品批次：")
 
-    # 更新过滤逻辑，未收款的也显示在待办里
     pending_finance_df = df[
         (df['invoice_status'] == '未开具') | 
         (df['list_status'] == '未开具') | 
