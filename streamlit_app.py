@@ -33,23 +33,41 @@ if not os.path.exists(UPLOADS_DIR):
 
 # --- 数据操作函数 ---
 def load_data():
-    """从 CSV 文件加载数据。"""
-    if os.path.exists(DATA_FILE):
-        df = pd.read_csv(DATA_FILE)
-        # 修复数据类型冲突：将缺失值替换为空白
-        df = df.fillna("") 
+    """从 Supabase 云端数据库加载数据。"""
+    try:
+        # 从 samples 表中查询所有数据
+        response = supabase.table("samples").select("*").execute()
+        data = response.data
         
-        # 强制将这些可能被误判为数字的列转换为字符串类型 (str)
-        cols_to_str = ["requirements", "sender", "sample_type", "progress", "invoice_status", "list_status", "uploaded_files"]
-        for col in cols_to_str:
-            if col in df.columns:
-                df[col] = df[col].astype(str)
-                
-        return df
-    return pd.DataFrame()
+        if data: # 如果数据库里有数据
+            df = pd.DataFrame(data)
+            df = df.fillna("") 
+            cols_to_str = ["requirements", "sender", "sample_type", "progress", "invoice_status", "list_status", "uploaded_files"]
+            for col in cols_to_str:
+                if col in df.columns:
+                    df[col] = df[col].astype(str)
+            # 确保按 ID 排序
+            df = df.sort_values('id').reset_index(drop=True)
+            return df
+        else: # 如果数据库是空的，返回带有标准列名的空表格
+            return pd.DataFrame(columns=[
+                "id", "reception_date", "sender", "sample_type", "quantity",
+                "progress", "requirements", "invoice_status", "list_status", "uploaded_files"
+            ])
+    except Exception as e:
+        st.error(f"读取云端数据失败: {e}")
+        return pd.DataFrame()
+
 def save_data(df):
-    """将数据帧保存到 CSV 文件。"""
-    df.to_csv(DATA_FILE, index=False)
+    """将数据保存到 Supabase 云端数据库。"""
+    try:
+        # 将 Pandas 数据表格转换为字典列表格式
+        records = df.to_dict('records')
+        if records:
+            # upsert 方法：如果 ID 存在就更新，不存在就插入新行
+            supabase.table("samples").upsert(records).execute()
+    except Exception as e:
+        st.error(f"保存云端数据失败: {e}")
 
 # --- 身份验证（简单原型） ---
 # 注意：在生产环境中，必须使用安全的、哈希化的密码存储和专业的认证方案。
