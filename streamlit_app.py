@@ -125,8 +125,8 @@ def login_page():
     
     # 标题：正楷、蓝色、居中，底部外边距 40px (约等于两行间隔)
     st.markdown("""
-        <h2 style='text-align: center; color: #1976D2; font-family: "楷体", "KaiTi", "STKaiti", serif; font-size: 48px; margin-top: 0; margin-bottom: 40px;'>
-            玉佳生物对外科研业务管理系统 - 登录
+        <h2 style='text-align: center; color: #1976D2; font-family: "楷体", "KaiTi", "STKaiti", serif; font-size: 48px; margin-top: 0; margin-bottom: 40px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>
+            玉佳生物科研业务管理系统
         </h2>
     """, unsafe_allow_html=True)
     
