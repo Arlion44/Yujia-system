@@ -111,7 +111,7 @@ def scientific_staff_page():
             with col1:
                 reception_date = st.date_input("接收时间", value=date.today())
                 sender = st.text_input("寄样人")
-                sample_type = st.selectbox("样品类型", ["血清", "血浆", "细胞", "组织", "DNA/RNA", "其他"])
+                sample_type = st.text_input("样品类型", placeholder="请输入（例如：土壤湿样、土壤干样、植物鲜样...）")
                 quantity = st.number_input("样品数量", min_value=1, step=1)
             with col2:
                 progress = st.selectbox("当前进度", ["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"])
@@ -160,7 +160,7 @@ def scientific_staff_page():
             "id": "ID",
             "reception_date": st.column_config.DateColumn("接收时间", format="YYYY-MM-DD", disabled=True),
             "sender": st.column_config.TextColumn("寄样人", disabled=True),
-            "sample_type": st.column_config.TextColumn("样品类型", disabled=True),
+            "sample_type": st.column_config.TextColumn("样品类型"),
             "quantity": st.column_config.NumberColumn("样品数量", disabled=True),
             "progress": st.column_config.SelectboxColumn("当前进度", options=["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"]),
             "requirements": st.column_config.TextColumn("样品处理要求"),
