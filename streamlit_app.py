@@ -3,7 +3,16 @@ import pandas as pd
 import os
 from datetime import date
 import json
+from supabase import create_client, Client
 
+# 初始化 Supabase 客户端
+@st.cache_resource
+def init_connection():
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+supabase = init_connection()
 # --- 配置和常数 ---
 DATA_FILE = "sample_management_data.csv"
 UPLOADS_DIR = "uploads"
@@ -67,22 +76,15 @@ def check_login(username, password):
 
 # --- UI 辅助函数 ---
 def display_uploaded_files(files_json):
-    """解析并显示已上传文件的列表。"""
-    if pd.isna(files_json) or files_json == "[]":
+    """解析并显示 Supabase 云端文件的下载链接。"""
+    if pd.isna(files_json) or files_json == "[]" or not files_json:
         st.write("暂无上传文件。")
     else:
         files = json.loads(files_json)
         for file_info in files:
-            file_path = os.path.join(UPLOADS_DIR, file_info["filename"])
-            if os.path.exists(file_path):
-                # 创建一个下载按钮
-                with open(file_path, "rb") as file:
-                    btn = st.download_button(
-                        label=f"⬇️ {file_info['original_name']}",
-                        data=file,
-                        file_name=file_info['original_name'],
-                        key=file_info['filename'] # 唯一的 key
-                    )
+            # 直接从 Supabase 获取公开下载链接
+            public_url = supabase.storage.from_('uploads').get_public_url(file_info["filename"])
+            st.markdown(f"[⬇️ 点击下载：{file_info['original_name']}]({public_url})")
 
 # ==========================================
 # --- 登录界面 ---
@@ -137,9 +139,15 @@ def scientific_staff_page():
                 for file in uploaded_files:
                     # 修改了这里，且保证了对齐
                     unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
-                    file_path = os.path.join(UPLOADS_DIR, unique_filename)
-                    with open(file_path, "wb") as f:
-                        f.write(file.getbuffer())
+                    
+                    # 将上传的文件转换为字节流并推送到 Supabase 的 'uploads' 存储桶
+                    file_bytes = file.getvalue()
+                    supabase.storage.from_('uploads').upload(
+                        path=unique_filename,
+                        file=file_bytes,
+                        file_options={"content-type": file.type}
+                    )
+                    
                     new_files_list.append({"original_name": file.name, "filename": unique_filename})
                 
                 # 创建新记录
