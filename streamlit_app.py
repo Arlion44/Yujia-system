@@ -129,7 +129,7 @@ def login_page():
     # 标题部分
     st.markdown("""
         <div style="text-align: center; width: 100%; margin-bottom: 30px;">
-            <h1 style='color: #1976D2; font-family: "楷体", "KaiTi", serif; font-size: 30px; white-space: nowrap; margin: 0;'>
+            <h1 style='color: #1976D2; font-family: "楷体", "KaiTi", serif; font-size: 48px; white-space: nowrap; margin: 0;'>
                 玉佳生物科研业务管理系统
             </h1>
         </div>
