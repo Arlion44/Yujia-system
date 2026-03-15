@@ -95,7 +95,7 @@ def login_page():
         /* 2. 让登录框在网页中居中，并限制最大宽度 */
         .block-container {
             padding-top: 15vh !important;
-            max-width: 500px !important;
+            max-width: 600px !important;
         }
 
         /* 3. 设置表单为白色背景，加上圆角和阴影 */
@@ -108,20 +108,18 @@ def login_page():
         }
 
         /* 4. 登录按钮靠右对齐 */
-        [data-testid="stFormSubmitButton"] {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 15px;
+        div[data-testid="stFormSubmitButton"] {
+            text-align: right; /* 让容器内的按钮右对齐 */
+            display: block;
+            margin-top: 20px;
         }
         
-        /* 美化登录按钮 */
-        [data-testid="stFormSubmitButton"] button {
-            padding: 5px 25px;
-            border-radius: 6px;
+        /* 按钮本身的微调 */
+        div[data-testid="stFormSubmitButton"] button {
+            margin-left: auto; /* 确保在 flex 布局下也能靠右 */
         }
     </style>
-    """
-    st.markdown(custom_css, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
     
     # 标题：正楷、蓝色、居中，底部外边距 40px (约等于两行间隔)
     st.markdown("""
