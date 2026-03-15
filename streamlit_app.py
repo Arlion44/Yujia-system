@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import date
 import json
 from supabase import create_client, Client
 
@@ -13,6 +13,9 @@ def init_connection():
 
 supabase = init_connection()
 
+# --- 配置和常数 ---
+DATE_FORMAT = "%Y-%m-%d"
+
 # --- 数据操作函数 ---
 def load_data():
     """从 Supabase 云端数据库加载数据。"""
@@ -23,7 +26,7 @@ def load_data():
         if data: 
             df = pd.DataFrame(data)
             df = df.fillna("") 
-            cols_to_str = ["requirements", "completion_date", "sender", "sample_type", "progress", "invoice_status", "payment_status", "list_status", "uploaded_files", "reception_date"]
+            cols_to_str = ["requirements", "completion_date", "sender", "sample_type", "progress", "invoice_status", "payment_status", "list_status", "uploaded_files"]
             for col in cols_to_str:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
@@ -52,9 +55,9 @@ def check_login(username, password):
     """简单的登录检查。"""
     
     users = {
-        "wang_xiaoliang": {"password": "password_wx", "role": "scientific"},
-        "peng_yutao": {"password": "password_py", "role": "scientific"},
-        "zhou_cuiying": {"password": "password_zc", "role": "finance"}
+        "wangxiaoliang": {"password": "Yujia@003", "role": "scientific"},
+        "pengyutao": {"password": "Yujia@002", "role": "scientific"},
+        "zhoucuiying": {"password": "Yujia@001", "role": "finance"}
     }
     
     if username in users and users[username]["password"] == password:
@@ -111,25 +114,11 @@ def scientific_staff_page():
         st.subheader("录入新样品接收情况")
         with st.form("new_sample_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
-            
             with col1:
-                # 1. 接收时间改为文本框，支持自由输入，默认显示当前日期和时间
-                current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                reception_date = st.text_input("接收时间", value=current_time)
-                
-                # 2. 寄样人姓名库逻辑
-                existing_senders = df['sender'].unique().tolist() if not df.empty else []
-                existing_senders = [s for s in existing_senders if str(s).strip()] # 过滤掉空名字
-                
-                sender_choice = st.selectbox("寄样人 (选择历史姓名或新增)", ["➕ 新增寄样人..."] + existing_senders)
-                if sender_choice == "➕ 新增寄样人...":
-                    sender = st.text_input("请输入新寄样人姓名", placeholder="填写新客户姓名...")
-                else:
-                    sender = sender_choice
-
-                sample_type = st.text_input("样品类型", placeholder="请输入（例如：血清、C2C12细胞...）")
+                reception_date = st.date_input("接收时间", value=date.today())
+                sender = st.text_input("寄样人")
+                sample_type = st.text_input("样品类型", placeholder="请输入（例如：土壤、植物组织...）")
                 quantity = st.number_input("样品数量", min_value=1, step=1)
-                
             with col2:
                 progress = st.selectbox("当前进度", ["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"])
                 requirements = st.text_area("样品处理要求/注意事项")
@@ -138,40 +127,37 @@ def scientific_staff_page():
             submit_sample = st.form_submit_button("保存新样品记录")
             
             if submit_sample:
-                if not sender.strip():
-                    st.warning("⚠️ 寄样人姓名不能为空！请填写后再保存。")
-                else:
-                    new_files_list = []
-                    for file in uploaded_files:
-                        unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
-                        
-                        file_bytes = file.getvalue()
-                        supabase.storage.from_('uploads').upload(
-                            path=unique_filename,
-                            file=file_bytes,
-                            file_options={"content-type": file.type}
-                        )
-                        
-                        new_files_list.append({"original_name": file.name, "filename": unique_filename})
+                new_files_list = []
+                for file in uploaded_files:
+                    unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
                     
-                    new_data = {
-                        "id": len(df) + 1 if len(df) > 0 else 1,
-                        "reception_date": reception_date, # 直接保存输入的文本内容
-                        "sender": sender,
-                        "sample_type": sample_type,
-                        "quantity": quantity,
-                        "progress": progress,
-                        "requirements": requirements,
-                        "completion_date": "", 
-                        "invoice_status": "未开具",
-                        "payment_status": "否", 
-                        "list_status": "未开具",
-                        "uploaded_files": json.dumps(new_files_list)
-                    }
-                    df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
-                    save_data(df)
-                    st.success("新样品记录已保存并上传相关文件！")
-                    st.rerun()
+                    file_bytes = file.getvalue()
+                    supabase.storage.from_('uploads').upload(
+                        path=unique_filename,
+                        file=file_bytes,
+                        file_options={"content-type": file.type}
+                    )
+                    
+                    new_files_list.append({"original_name": file.name, "filename": unique_filename})
+                
+                new_data = {
+                    "id": len(df) + 1 if len(df) > 0 else 1,
+                    "reception_date": reception_date.strftime(DATE_FORMAT),
+                    "sender": sender,
+                    "sample_type": sample_type,
+                    "quantity": quantity,
+                    "progress": progress,
+                    "requirements": requirements,
+                    "completion_date": "", 
+                    "invoice_status": "未开具",
+                    "payment_status": "否", 
+                    "list_status": "未开具",
+                    "uploaded_files": json.dumps(new_files_list)
+                }
+                df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
+                save_data(df)
+                st.success("新样品记录已保存并上传相关文件！")
+                st.rerun()
 
     # -----------------------------------
     # 标签页 2：样品概览界面
@@ -182,7 +168,7 @@ def scientific_staff_page():
             df,
             column_config={
                 "id": "ID",
-                "reception_date": st.column_config.TextColumn("接收时间", disabled=True), # 修改为文本列
+                "reception_date": st.column_config.DateColumn("接收时间", format="YYYY-MM-DD", disabled=True),
                 "sender": st.column_config.TextColumn("寄样人", disabled=True),
                 "sample_type": st.column_config.TextColumn("样品类型"),
                 "quantity": st.column_config.NumberColumn("样品数量", disabled=True),
@@ -236,7 +222,7 @@ def finance_page():
         pending_finance_df,
         column_config={
             "id": "ID",
-            "reception_date": st.column_config.TextColumn("接收时间", disabled=True), # 修改为文本列
+            "reception_date": st.column_config.DateColumn("接收时间", format="YYYY-MM-DD", disabled=True),
             "sender": st.column_config.TextColumn("寄样人", disabled=True),
             "sample_type": st.column_config.TextColumn("样品类型", disabled=True),
             "quantity": st.column_config.NumberColumn("样品数量", disabled=True),
@@ -265,4 +251,51 @@ def finance_page():
             df,
             column_config={
                 "id": "ID",
-                "
+                "reception_date": st.column_config.DateColumn("接收时间", format="YYYY-MM-DD", disabled=True),
+                "sender": st.column_config.TextColumn("寄样人", disabled=True),
+                "sample_type": st.column_config.TextColumn("样品类型", disabled=True),
+                "progress": st.column_config.TextColumn("当前进度", disabled=True),
+                "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
+                "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]),
+                "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
+                "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
+            },
+            disabled=["id", "reception_date", "sender", "sample_type", "quantity", "progress", "requirements", "completion_date", "uploaded_files"],
+            key="all_finance_editor"
+        )
+        
+        if st.button("保存所有状态更改"):
+             save_data(edited_all_finance_df)
+             st.success("所有更改已保存。")
+             st.rerun()
+
+# ==========================================
+# --- 应用程序主入口 ---
+# ==========================================
+if __name__ == '__main__':
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    if 'username' not in st.session_state:
+        st.session_state.username = None
+    if 'role' not in st.session_state:
+        st.session_state.role = None
+
+    if not st.session_state.logged_in:
+        login_page()
+    else:
+        st.sidebar.title("玉佳生物管理")
+        st.sidebar.markdown(f"**用户:** {st.session_state.username}")
+        st.sidebar.markdown(f"**角色:** {'科研' if st.session_state.role == 'scientific' else '财务'}")
+        
+        if st.sidebar.button("注销"):
+            st.session_state.logged_in = False
+            st.session_state.username = None
+            st.session_state.role = None
+            st.rerun()
+
+        if st.session_state.role == "scientific":
+            scientific_staff_page()
+        elif st.session_state.role == "finance":
+            finance_page()
+        else:
+            st.error("未知用户角色。")
