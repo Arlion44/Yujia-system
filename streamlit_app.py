@@ -55,9 +55,9 @@ def check_login(username, password):
     """简单的登录检查。"""
     
     users = {
-        "wang_xiaoliang": {"password": "password_wx", "role": "scientific"},
-        "peng_yutao": {"password": "password_py", "role": "scientific"},
-        "zhou_cuiying": {"password": "password_zc", "role": "finance"}
+        "wangxiaoliang": {"password": "Yujia@003", "role": "scientific"},
+        "pengyutao": {"password": "Yujia@002", "role": "scientific"},
+        "zhoucuiying": {"password": "Yujia@001", "role": "finance"}
     }
     
     if username in users and users[username]["password"] == password:
