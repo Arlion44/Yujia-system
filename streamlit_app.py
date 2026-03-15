@@ -30,7 +30,7 @@ def load_data():
             for col in cols_to_str:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
-            df = df.sort_values('id').reset_index(drop=True)
+            df = df.sort_values("id").reset_index(drop=True)
             return df
         else: 
             return pd.DataFrame(columns=[
@@ -44,7 +44,7 @@ def load_data():
 def save_data(df):
     """将数据保存到 Supabase 云端数据库。"""
     try:
-        records = df.to_dict('records')
+        records = df.to_dict("records")
         if records:
             supabase.table("samples").upsert(records).execute()
     except Exception as e:
@@ -72,7 +72,7 @@ def display_uploaded_files(files_json):
     else:
         files = json.loads(files_json)
         for file_info in files:
-            public_url = supabase.storage.from_('uploads').get_public_url(file_info["filename"])
+            public_url = supabase.storage.from_("uploads").get_public_url(file_info["filename"])
             st.markdown(f"[⬇️ 点击下载：{file_info['original_name']}]({public_url})")
 
 # ==========================================
@@ -132,7 +132,7 @@ def scientific_staff_page():
                     unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
                     
                     file_bytes = file.getvalue()
-                    supabase.storage.from_('uploads').upload(
+                    supabase.storage.from_("uploads").upload(
                         path=unique_filename,
                         file=file_bytes,
                         file_options={"content-type": file.type}
@@ -178,7 +178,7 @@ def scientific_staff_page():
                 "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
                 "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]), 
                 "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
-                "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
+                "uploaded_files": st.column_config.TextColumn("已上传文件", disabled=True)
             },
             num_rows="dynamic",
             key="scientific_editor"
@@ -194,13 +194,13 @@ def scientific_staff_page():
     # -----------------------------------
     with tab3:
         st.subheader("查看特定样品的上传文件")
-        sample_to_view_files = st.selectbox("选择要查看文件的样品 ID", df['id'].unique(), index=None, placeholder="选择一个 ID...")
+        sample_to_view_files = st.selectbox("选择要查看文件的样品 ID", df["id"].unique(), index=None, placeholder="选择一个 ID...")
         
         if sample_to_view_files is not None:
-            sample_row = df[df['id'] == sample_to_view_files].iloc[0]
+            sample_row = df[df["id"] == sample_to_view_files].iloc[0]
             st.write(f"**寄样人:** {sample_row['sender']}, **类型:** {sample_row['sample_type']}")
             st.write("**已上传文件列表：**")
-            display_uploaded_files(sample_row['uploaded_files'])
+            display_uploaded_files(sample_row["uploaded_files"])
 
 # ==========================================
 # --- 财务人员页面 (Finance Staff) ---
@@ -213,9 +213,9 @@ def finance_page():
     st.write("以下是未完全开具发票、清单，或未收款的样品批次：")
 
     pending_finance_df = df[
-        (df['invoice_status'] == '未开具') | 
-        (df['list_status'] == '未开具') | 
-        (df['payment_status'] == '否')
+        (df["invoice_status"] == "未开具") | 
+        (df["list_status"] == "未开具") | 
+        (df["payment_status"] == "否")
     ]
 
     edited_finance_df = st.data_editor(
@@ -232,7 +232,7 @@ def finance_page():
             "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
             "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]),
             "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
-            "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
+            "uploaded_files": st.column_config.TextColumn("已上传文件", disabled=True)
         },
         key="finance_editor"
     )
@@ -258,7 +258,7 @@ def finance_page():
                 "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
                 "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]),
                 "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
-                "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
+                "uploaded_files": st.column_config.TextColumn("已上传文件", disabled=True)
             },
             disabled=["id", "reception_date", "sender", "sample_type", "quantity", "progress", "requirements", "completion_date", "uploaded_files"],
             key="all_finance_editor"
@@ -272,20 +272,23 @@ def finance_page():
 # ==========================================
 # --- 应用程序主入口 ---
 # ==========================================
-if __name__ == '__main__':
-    if 'logged_in' not in st.session_state:
+if __name__ == "__main__":
+    if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
-    if 'username' not in st.session_state:
+    if "username" not in st.session_state:
         st.session_state.username = None
-    if 'role' not in st.session_state:
+    if "role" not in st.session_state:
         st.session_state.role = None
 
     if not st.session_state.logged_in:
         login_page()
     else:
-        st.sidebar.title("玉佳生物管理")
+        st.sidebar.title("玉佳生物科技管理系统")
         st.sidebar.markdown(f"**用户:** {st.session_state.username}")
-        st.sidebar.markdown(f"**角色:** {'科研' if st.session_state.role == 'scientific' else '财务'}")
+        
+        # 修复了这里的隐患，不再在 f-string 中嵌套复杂的单双引号
+        role_name = "科研" if st.session_state.role == "scientific" else "财务"
+        st.sidebar.markdown(f"**角色:** {role_name}")
         
         if st.sidebar.button("注销"):
             st.session_state.logged_in = False
