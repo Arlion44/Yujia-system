@@ -283,7 +283,7 @@ if __name__ == "__main__":
     if not st.session_state.logged_in:
         login_page()
     else:
-        st.sidebar.title("玉佳生物科技管理系统")
+        st.sidebar.title("玉佳生物业务管理系统")
         st.sidebar.markdown(f"**用户:** {st.session_state.username}")
         
         # 修复了这里的隐患，不再在 f-string 中嵌套复杂的单双引号
