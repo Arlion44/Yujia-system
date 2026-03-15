@@ -135,8 +135,8 @@ def scientific_staff_page():
                 # 处理文件上传
                 new_files_list = []
                 for file in uploaded_files:
-                    # 使用哈希和原始名称创建唯一的文件名，以避免覆盖
-                   unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
+                    # 修改了这里，且保证了对齐
+                    unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
                     file_path = os.path.join(UPLOADS_DIR, unique_filename)
                     with open(file_path, "wb") as f:
                         f.write(file.getbuffer())
