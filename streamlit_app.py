@@ -117,7 +117,7 @@ def scientific_staff_page():
             with col1:
                 reception_date = st.date_input("接收时间", value=date.today())
                 sender = st.text_input("寄样人")
-                sample_type = st.text_input("样品类型", placeholder="请输入（例如：血清、C2C12细胞...）")
+                sample_type = st.text_input("样品类型", placeholder="请输入（例如：土壤、植物组织...）")
                 quantity = st.number_input("样品数量", min_value=1, step=1)
             with col2:
                 progress = st.selectbox("当前进度", ["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"])
