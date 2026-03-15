@@ -79,7 +79,7 @@ def display_uploaded_files(files_json):
 # --- 登录界面 ---
 # ==========================================
 def login_page():
-    st.title("玉佳生物对外科研业务管理系统 - 登录")
+    st.title("玉佳生物科研业务管理系统")
     
     with st.form("login_form"):
         username = st.text_input("用户名")
