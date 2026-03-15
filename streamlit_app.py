@@ -108,7 +108,7 @@ def login_page():
         }
 
         /* 4. 登录按钮靠右对齐 */
-        div[data-testid="stFormSubmitButton"] {
+        [data-testid="stFormSubmitButton"] {
             text-align: right; /* 让容器内的按钮右对齐 */
             display: block;
             margin-top: 20px;
