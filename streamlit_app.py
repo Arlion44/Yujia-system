@@ -167,4 +167,87 @@ def scientific_staff_page():
                 sender = st.text_input("寄样人")
                 sample_type = st.text_input("样品类型")
                 quantity = st.number_input("样品数量", min_value=1, step=1)
-            with col2
+            with col2:
+                progress = st.selectbox("当前进度", ["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"])
+                requirements = st.text_area("样品处理要求/注意事项")
+            uploaded_files = st.file_uploader("上传相关文件", accept_multiple_files=True)
+            submit_sample = st.form_submit_button("保存新样品记录")
+            
+            if submit_sample:
+                new_files_list = []
+                for file in uploaded_files:
+                    unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
+                    supabase.storage.from_("uploads").upload(path=unique_filename, file=file.getvalue(), file_options={"content-type": file.type})
+                    new_files_list.append({"original_name": file.name, "filename": unique_filename})
+                
+                new_data = {
+                    "id": int(df["id"].max() + 1) if not df.empty else 1,
+                    "reception_date": reception_date.strftime(DATE_FORMAT),
+                    "sender": sender, "sample_type": sample_type, "quantity": quantity,
+                    "progress": progress, "requirements": requirements, "completion_date": "", 
+                    "invoice_status": "未开具", "payment_status": "否", "list_status": "未开具",
+                    "uploaded_files": json.dumps(new_files_list)
+                }
+                df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
+                save_data(df)
+                st.success("记录已保存！")
+                st.rerun()
+
+    with tab2:
+        st.subheader("所有样品状态概览与编辑")
+        edited_df = st.data_editor(df, num_rows="dynamic", key="sci_editor")
+        if st.button("保存更改"):
+            save_data(edited_df)
+            st.success("更改已保存。")
+            st.rerun()
+
+    with tab3:
+        st.subheader("查看特定样品的上传文件")
+        sample_id = st.selectbox("选择样品 ID", df["id"].unique() if not df.empty else [], index=None)
+        if sample_id:
+            row = df[df["id"] == sample_id].iloc[0]
+            display_uploaded_files(row["uploaded_files"])
+
+def finance_page():
+    """财务页面"""
+    st.title(f"财务管理 - 欢迎，{st.session_state.username}")
+    df = load_data()
+    st.subheader("📝 财务待办清单")
+    pending_df = df[(df["invoice_status"] == "未开具") | (df["list_status"] == "未开具") | (df["payment_status"] == "否")]
+    edited_finance_df = st.data_editor(pending_df, key="fin_editor")
+    
+    if st.button("保存财务状态更新"):
+        df.update(edited_finance_df)
+        save_data(df)
+        st.success("财务状态已成功更新！")
+        st.rerun()
+
+# ==========================================
+# --- 4. 应用程序主入口 ---
+# ==========================================
+if __name__ == "__main__":
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+    if "username" not in st.session_state:
+        st.session_state.username = None
+    if "role" not in st.session_state:
+        st.session_state.role = None
+
+    if not st.session_state.logged_in:
+        login_page()
+    else:
+        st.sidebar.title("玉佳生物业务管理系统")
+        st.sidebar.markdown(f"**用户:** {st.session_state.username}")
+        role_display = "科研" if st.session_state.role == "scientific" else "财务"
+        st.sidebar.markdown(f"**角色:** {role_display}")
+        
+        if st.sidebar.button("注销"):
+            st.session_state.logged_in = False
+            st.session_state.username = None
+            st.session_state.role = None
+            st.rerun()
+
+        if st.session_state.role == "scientific":
+            scientific_staff_page()
+        elif st.session_state.role == "finance":
+            finance_page()
