@@ -79,8 +79,58 @@ def display_uploaded_files(files_json):
 # --- 登录界面 ---
 # ==========================================
 def login_page():
-    st.title("玉佳生物科研业务管理系统")
+    # 注入自定义 CSS 来修改登录界面的样式
+    custom_css = """
+    <style>
+        /* 1. 整个页面背景设置为嫩绿色 */
+        [data-testid="stAppViewContainer"] {
+            background-color: #e8f5e9;
+        }
+        
+        /* 隐藏顶部的 Streamlit 默认装饰条，避免影响居中视觉 */
+        [data-testid="stHeader"] {
+            display: none;
+        }
+
+        /* 2. 让登录框在网页中居中，并限制最大宽度 */
+        .block-container {
+            padding-top: 15vh !important;
+            max-width: 500px !important;
+        }
+
+        /* 3. 设置表单为白色背景，加上圆角和阴影 */
+        [data-testid="stForm"] {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+
+        /* 4. 登录按钮靠右对齐 */
+        [data-testid="stFormSubmitButton"] {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 15px;
+        }
+        
+        /* 美化登录按钮 */
+        [data-testid="stFormSubmitButton"] button {
+            padding: 5px 25px;
+            border-radius: 6px;
+        }
+    </style>
+    """
+    st.markdown(custom_css, unsafe_allow_html=True)
     
+    # 标题：正楷、蓝色、居中，底部外边距 40px (约等于两行间隔)
+    st.markdown("""
+        <h2 style='text-align: center; color: #1976D2; font-family: "楷体", "KaiTi", "STKaiti", serif; font-size: 28px; margin-top: 0; margin-bottom: 40px;'>
+            玉佳生物对外科研业务管理系统 - 登录
+        </h2>
+    """, unsafe_allow_html=True)
+    
+    # Streamlit 的 st.form 自带 Enter 键提交功能
     with st.form("login_form"):
         username = st.text_input("用户名")
         password = st.text_input("密码", type="password")
@@ -286,7 +336,6 @@ if __name__ == "__main__":
         st.sidebar.title("玉佳生物业务管理系统")
         st.sidebar.markdown(f"**用户:** {st.session_state.username}")
         
-        # 修复了这里的隐患，不再在 f-string 中嵌套复杂的单双引号
         role_name = "科研" if st.session_state.role == "scientific" else "财务"
         st.sidebar.markdown(f"**角色:** {role_name}")
         
