@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import date, datetime
 import json
 from supabase import create_client, Client
 
@@ -66,7 +66,7 @@ def save_data(df):
     except Exception as e:
         st.error(f"保存样品数据失败: {e}")
 
-# --- 新增：收支流水的数据处理 ---
+# --- 财务流水数据处理 ---
 def load_transactions():
     """从 Supabase 加载财务流水数据"""
     try:
@@ -90,7 +90,6 @@ def save_transactions(df):
             supabase.table("transactions").upsert(records).execute()
     except Exception as e:
         st.error(f"保存流水数据失败: {e}")
-# -----------------------------
 
 def display_uploaded_files(files_json):
     """文件下载逻辑"""
@@ -113,44 +112,24 @@ def login_page():
     """登录界面"""
     st.markdown("""
     <style>
-    /* 全局背景与布局 */
-    [data-testid="stAppViewContainer"] {
-        background-color: #e8f5e9 !important;
-    }
-    [data-testid="stHeader"] {
-        background: rgba(0,0,0,0);
-    }
-    .block-container {
-        padding-top: 12vh !important;
-        max-width: 600px !important;
-    }
-
-    /* 登录白框样式 */
+    [data-testid="stAppViewContainer"] { background-color: #e8f5e9 !important; }
+    [data-testid="stHeader"] { background: rgba(0,0,0,0); }
+    .block-container { padding-top: 12vh !important; max-width: 600px !important; }
     [data-testid="stForm"] {
-        background-color: #ffffff !important;
-        padding: 40px !important;
-        border-radius: 15px !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
+        background-color: #ffffff !important; padding: 40px !important;
+        border-radius: 15px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
         border: none !important;
     }
-
-    /* 核心修改：强制按钮定位到右下角 */
     div[data-testid="stFormSubmitButton"] {
-        display: flex !important;
-        justify-content: flex-end !important;
-        margin-top: 30px !important;
+        display: flex !important; justify-content: flex-end !important; margin-top: 30px !important;
     }
-    
     div[data-testid="stFormSubmitButton"] button {
-        width: 100px !important;
-        background-color: #1976D2 !important;
-        color: white !important;
-        border-radius: 5px !important;
+        width: 100px !important; background-color: #1976D2 !important;
+        color: white !important; border-radius: 5px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # 标题部分
     st.markdown("""
         <div style="text-align: center; width: 100%; margin-bottom: 30px;">
             <h1 style='color: #1976D2; font-family: "楷体", "KaiTi", serif; font-size: 48px; white-space: nowrap; margin: 0;'>
@@ -162,7 +141,6 @@ def login_page():
     with st.form("login_form"):
         username = st.text_input("用户名")
         password = st.text_input("密码", type="password")
-        
         submit_button = st.form_submit_button("登录")
         
         if submit_button:
@@ -186,8 +164,20 @@ def scientific_staff_page():
         with st.form("new_sample_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                reception_date = st.date_input("接收时间", value=date.today())
-                sender = st.text_input("寄样人")
+                # 优化1：时间可直接手动修改和输入
+                current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                reception_time = st.text_input("接收时间 (可直接修改)", value=current_time_str)
+                
+                # 优化2：寄样人姓名记忆库
+                existing_senders = [s for s in df["sender"].unique() if str(s).strip() != ""] if not df.empty else []
+                sender_options = existing_senders + ["➕ 新增寄样人 (手动输入)"]
+                selected_sender = st.selectbox("选择寄样人", sender_options)
+                
+                if selected_sender == "➕ 新增寄样人 (手动输入)":
+                    sender = st.text_input("请输入新寄样人姓名")
+                else:
+                    sender = selected_sender
+
                 sample_type = st.text_input("样品类型")
                 quantity = st.number_input("样品数量", min_value=1, step=1)
             with col2:
@@ -197,24 +187,27 @@ def scientific_staff_page():
             submit_sample = st.form_submit_button("保存新样品记录")
             
             if submit_sample:
-                new_files_list = []
-                for file in uploaded_files:
-                    unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
-                    supabase.storage.from_("uploads").upload(path=unique_filename, file=file.getvalue(), file_options={"content-type": file.type})
-                    new_files_list.append({"original_name": file.name, "filename": unique_filename})
-                
-                new_data = {
-                    "id": int(df["id"].max() + 1) if not df.empty else 1,
-                    "reception_date": reception_date.strftime(DATE_FORMAT),
-                    "sender": sender, "sample_type": sample_type, "quantity": quantity,
-                    "progress": progress, "requirements": requirements, "completion_date": "", 
-                    "invoice_status": "未开具", "payment_status": "否", "list_status": "未开具",
-                    "uploaded_files": json.dumps(new_files_list)
-                }
-                df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
-                save_data(df)
-                st.success("记录已保存！")
-                st.rerun()
+                if not sender:
+                    st.warning("请填写或选择寄样人！")
+                else:
+                    new_files_list = []
+                    for file in uploaded_files:
+                        unique_filename = f"{st.session_state.username}_{file.size}_{file.name}"
+                        supabase.storage.from_("uploads").upload(path=unique_filename, file=file.getvalue(), file_options={"content-type": file.type})
+                        new_files_list.append({"original_name": file.name, "filename": unique_filename})
+                    
+                    new_data = {
+                        "id": int(df["id"].max() + 1) if not df.empty else 1,
+                        "reception_date": reception_time,  # 直接存入手动修改的时间字符串
+                        "sender": sender, "sample_type": sample_type, "quantity": quantity,
+                        "progress": progress, "requirements": requirements, "completion_date": "", 
+                        "invoice_status": "未开具", "payment_status": "否", "list_status": "未开具",
+                        "uploaded_files": json.dumps(new_files_list)
+                    }
+                    df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
+                    save_data(df)
+                    st.success("记录已保存！")
+                    st.rerun()
 
     with tab2:
         st.subheader("所有样品状态概览与编辑")
@@ -232,30 +225,24 @@ def scientific_staff_page():
             display_uploaded_files(row["uploaded_files"])
 
 def finance_page():
-    """财务页面 - 已扩展业务流水与报表功能"""
+    """财务页面 - 业务流水与报表功能"""
     st.title(f"财务管理 - 欢迎，{st.session_state.username}")
-    
     tab1, tab2, tab3 = st.tabs(["📝 样品账单待办", "💰 收支流水登记", "📊 总财务报表"])
 
-    # --- Tab 1: 原有的样品财务审核 ---
     with tab1:
         df = load_data()
         st.subheader("📝 财务待办清单 (针对科研样品)")
         pending_df = df[(df["invoice_status"] == "未开具") | (df["list_status"] == "未开具") | (df["payment_status"] == "否")]
         edited_finance_df = st.data_editor(pending_df, key="fin_editor")
-        
         if st.button("保存样品财务状态更新"):
             df.update(edited_finance_df)
             save_data(df)
             st.success("样品财务状态已成功更新！")
             st.rerun()
 
-    # --- Tab 2: 业务流水登记 (收入/支出) ---
     with tab2:
         st.subheader("💰 登记最新业务收支流水")
         t_df = load_transactions()
-        
-        # 选择流水类型
         trans_type = st.radio("选择需要登记的类型", ["收入", "支出"], horizontal=True)
         
         with st.form("transaction_form", clear_on_submit=True):
@@ -266,14 +253,13 @@ def finance_page():
                 t_amount = st.number_input("金额 (元)", min_value=0.0, step=100.0)
             
             with col2:
-                # 根据收入或支出，动态改变填报字段名称
                 if trans_type == "支出":
                     t_source = st.text_input("资金来源/支付账户 (如: 某对公账户/支付宝)")
                     t_operator = st.text_input("登记人", value=st.session_state.username)
                     t_remarks = st.text_area("备注信息")
                 else:
                     t_source = st.text_input("收入来源/打款方 (如: 某客户公司)")
-                    t_operator = st.session_state.username # 收入默认记录当前用户
+                    t_operator = st.session_state.username
                     t_remarks = st.text_area("回款备注")
                     
             submitted = st.form_submit_button(f"提交【{trans_type}】记录")
@@ -295,27 +281,22 @@ def finance_page():
                 st.success(f"成功登记一笔 {t_amount} 元的【{trans_type}】流水！")
                 st.rerun()
 
-    # --- Tab 3: 汇总报表与明细查询 ---
     with tab3:
         st.subheader("📊 业务总收支报表")
         t_df = load_transactions()
         
         if not t_df.empty:
-            # 数据指标计算
             total_income = t_df[t_df["type"] == "收入"]["amount"].sum()
             total_expense = t_df[t_df["type"] == "支出"]["amount"].sum()
             balance = total_income - total_expense
             
-            # 使用 metric 组件展示看板
             col_a, col_b, col_c = st.columns(3)
             col_a.metric("💰 总收入 (元)", f"¥ {total_income:,.2f}")
             col_b.metric("💸 总支出 (元)", f"¥ {total_expense:,.2f}")
             col_c.metric("🏦 当前结余 (元)", f"¥ {balance:,.2f}", delta=float(balance))
             
             st.divider()
-            
             st.markdown("##### 🧾 收支明细账单 (支持表格内直接修改)")
-            # 展示完整流水表，允许财务直接编辑或删除 (动态行)
             edited_t_df = st.data_editor(t_df, num_rows="dynamic", key="trans_table_editor", use_container_width=True)
             
             if st.button("保存明细账单更改"):
