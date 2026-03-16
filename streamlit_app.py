@@ -36,7 +36,7 @@ def check_login(username, password):
     return None
 
 def load_data():
-    """从 Supabase 加载数据"""
+    """从 Supabase 加载样品数据"""
     try:
         response = supabase.table("samples").select("*").execute()
         data = response.data
@@ -54,17 +54,43 @@ def load_data():
                 "progress", "requirements", "completion_date", "invoice_status", "payment_status", "list_status", "uploaded_files"
             ])
     except Exception as e:
-        st.error(f"读取数据失败: {e}")
+        st.error(f"读取样品数据失败: {e}")
         return pd.DataFrame()
 
 def save_data(df):
-    """保存数据"""
+    """保存样品数据"""
     try:
         records = df.to_dict("records")
         if records:
             supabase.table("samples").upsert(records).execute()
     except Exception as e:
-        st.error(f"保存数据失败: {e}")
+        st.error(f"保存样品数据失败: {e}")
+
+# --- 新增：收支流水的数据处理 ---
+def load_transactions():
+    """从 Supabase 加载财务流水数据"""
+    try:
+        response = supabase.table("transactions").select("*").execute()
+        data = response.data
+        if data:
+            df = pd.DataFrame(data)
+            df = df.fillna("")
+            return df.sort_values("id", ascending=False).reset_index(drop=True)
+        else:
+            return pd.DataFrame(columns=["id", "type", "date", "project", "amount", "source", "operator", "remarks"])
+    except Exception as e:
+        st.error(f"读取流水数据失败: {e}")
+        return pd.DataFrame(columns=["id", "type", "date", "project", "amount", "source", "operator", "remarks"])
+
+def save_transactions(df):
+    """保存财务流水数据"""
+    try:
+        records = df.to_dict("records")
+        if records:
+            supabase.table("transactions").upsert(records).execute()
+    except Exception as e:
+        st.error(f"保存流水数据失败: {e}")
+# -----------------------------
 
 def display_uploaded_files(files_json):
     """文件下载逻辑"""
@@ -84,7 +110,7 @@ def display_uploaded_files(files_json):
 # ==========================================
 
 def login_page():
-    """登录界面 - 已修正按钮至右下角"""
+    """登录界面"""
     st.markdown("""
     <style>
     /* 全局背景与布局 */
@@ -108,17 +134,15 @@ def login_page():
         border: none !important;
     }
 
-    /* --- 核心修改：强制按钮定位到右下角 --- */
-    /* 1. 针对表单内的按钮容器 */
+    /* 核心修改：强制按钮定位到右下角 */
     div[data-testid="stFormSubmitButton"] {
         display: flex !important;
-        justify-content: flex-end !important; /* 强制内容靠右 */
+        justify-content: flex-end !important;
         margin-top: 30px !important;
     }
     
-    /* 2. 针对按钮本身的样式微调 */
     div[data-testid="stFormSubmitButton"] button {
-        width: 100px !important; /* 设定一个固定宽度，更像传统的登录按钮 */
+        width: 100px !important;
         background-color: #1976D2 !important;
         color: white !important;
         border-radius: 5px !important;
@@ -139,7 +163,6 @@ def login_page():
         username = st.text_input("用户名")
         password = st.text_input("密码", type="password")
         
-        # 这个按钮会被 CSS 自动推向右侧
         submit_button = st.form_submit_button("登录")
         
         if submit_button:
@@ -209,18 +232,98 @@ def scientific_staff_page():
             display_uploaded_files(row["uploaded_files"])
 
 def finance_page():
-    """财务页面"""
+    """财务页面 - 已扩展业务流水与报表功能"""
     st.title(f"财务管理 - 欢迎，{st.session_state.username}")
-    df = load_data()
-    st.subheader("📝 财务待办清单")
-    pending_df = df[(df["invoice_status"] == "未开具") | (df["list_status"] == "未开具") | (df["payment_status"] == "否")]
-    edited_finance_df = st.data_editor(pending_df, key="fin_editor")
     
-    if st.button("保存财务状态更新"):
-        df.update(edited_finance_df)
-        save_data(df)
-        st.success("财务状态已成功更新！")
-        st.rerun()
+    tab1, tab2, tab3 = st.tabs(["📝 样品账单待办", "💰 收支流水登记", "📊 总财务报表"])
+
+    # --- Tab 1: 原有的样品财务审核 ---
+    with tab1:
+        df = load_data()
+        st.subheader("📝 财务待办清单 (针对科研样品)")
+        pending_df = df[(df["invoice_status"] == "未开具") | (df["list_status"] == "未开具") | (df["payment_status"] == "否")]
+        edited_finance_df = st.data_editor(pending_df, key="fin_editor")
+        
+        if st.button("保存样品财务状态更新"):
+            df.update(edited_finance_df)
+            save_data(df)
+            st.success("样品财务状态已成功更新！")
+            st.rerun()
+
+    # --- Tab 2: 业务流水登记 (收入/支出) ---
+    with tab2:
+        st.subheader("💰 登记最新业务收支流水")
+        t_df = load_transactions()
+        
+        # 选择流水类型
+        trans_type = st.radio("选择需要登记的类型", ["收入", "支出"], horizontal=True)
+        
+        with st.form("transaction_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                t_date = st.date_input("发生日期", value=date.today())
+                t_project = st.text_input("所属项目 / 事项")
+                t_amount = st.number_input("金额 (元)", min_value=0.0, step=100.0)
+            
+            with col2:
+                # 根据收入或支出，动态改变填报字段名称
+                if trans_type == "支出":
+                    t_source = st.text_input("资金来源/支付账户 (如: 某对公账户/支付宝)")
+                    t_operator = st.text_input("登记人", value=st.session_state.username)
+                    t_remarks = st.text_area("备注信息")
+                else:
+                    t_source = st.text_input("收入来源/打款方 (如: 某客户公司)")
+                    t_operator = st.session_state.username # 收入默认记录当前用户
+                    t_remarks = st.text_area("回款备注")
+                    
+            submitted = st.form_submit_button(f"提交【{trans_type}】记录")
+            
+            if submitted:
+                new_id = int(t_df["id"].max() + 1) if not t_df.empty and "id" in t_df.columns else 1
+                new_record = {
+                    "id": new_id,
+                    "type": trans_type,
+                    "date": t_date.strftime(DATE_FORMAT),
+                    "project": t_project,
+                    "amount": float(t_amount),
+                    "source": t_source,
+                    "operator": t_operator,
+                    "remarks": t_remarks
+                }
+                t_df = pd.concat([t_df, pd.DataFrame([new_record])], ignore_index=True)
+                save_transactions(t_df)
+                st.success(f"成功登记一笔 {t_amount} 元的【{trans_type}】流水！")
+                st.rerun()
+
+    # --- Tab 3: 汇总报表与明细查询 ---
+    with tab3:
+        st.subheader("📊 业务总收支报表")
+        t_df = load_transactions()
+        
+        if not t_df.empty:
+            # 数据指标计算
+            total_income = t_df[t_df["type"] == "收入"]["amount"].sum()
+            total_expense = t_df[t_df["type"] == "支出"]["amount"].sum()
+            balance = total_income - total_expense
+            
+            # 使用 metric 组件展示看板
+            col_a, col_b, col_c = st.columns(3)
+            col_a.metric("💰 总收入 (元)", f"¥ {total_income:,.2f}")
+            col_b.metric("💸 总支出 (元)", f"¥ {total_expense:,.2f}")
+            col_c.metric("🏦 当前结余 (元)", f"¥ {balance:,.2f}", delta=float(balance))
+            
+            st.divider()
+            
+            st.markdown("##### 🧾 收支明细账单 (支持表格内直接修改)")
+            # 展示完整流水表，允许财务直接编辑或删除 (动态行)
+            edited_t_df = st.data_editor(t_df, num_rows="dynamic", key="trans_table_editor", use_container_width=True)
+            
+            if st.button("保存明细账单更改"):
+                save_transactions(edited_t_df)
+                st.success("收支明细数据已更新！")
+                st.rerun()
+        else:
+            st.info("当前暂无流水记录，请在【收支流水登记】模块录入数据。")
 
 # ==========================================
 # --- 4. 应用程序主入口 ---
