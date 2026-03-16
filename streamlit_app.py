@@ -153,10 +153,9 @@ def login_page():
                 st.error("用户名或密码错误。")
 
 def scientific_staff_page():
-    """科研页面 - 新增支出流水权限"""
+    """科研页面"""
     st.title(f"科研业务管理 - 欢迎，{st.session_state.username}")
     df = load_data()
-    # 新增了第四个 Tab：支出报销登记
     tab1, tab2, tab3, tab4 = st.tabs(["🆕 样品录入", "📋 样品概览", "📁 查看上传文件", "💸 支出流水登记"])
 
     with tab1:
@@ -211,7 +210,6 @@ def scientific_staff_page():
         st.subheader("所有样品状态概览与编辑")
         edited_df = st.data_editor(df, num_rows="dynamic", key="sci_editor")
         if st.button("保存更改"):
-            # 同样修复样品表的删除逻辑
             deleted_ids = set(df["id"]) - set(edited_df["id"])
             for d_id in deleted_ids:
                 try:
@@ -229,7 +227,6 @@ def scientific_staff_page():
             row = df[df["id"] == sample_id].iloc[0]
             display_uploaded_files(row["uploaded_files"])
             
-    # 新增：分配给科研人员的支出登记专属区域
     with tab4:
         st.subheader("💸 登记业务支出流水")
         st.info("您在此处登记的支出记录将直接同步至财务总报表。")
@@ -267,7 +264,7 @@ def scientific_staff_page():
                 st.rerun()
 
 def finance_page():
-    """财务页面 - 修复了报表删除不同步的问题"""
+    """财务页面"""
     st.title(f"财务管理 - 欢迎，{st.session_state.username}")
     tab1, tab2, tab3 = st.tabs(["📝 样品账单待办", "💰 收支流水登记", "📊 总财务报表"])
 
@@ -328,6 +325,7 @@ def finance_page():
         t_df = load_transactions()
         
         if not t_df.empty:
+            # 数据总览面板计算
             total_income = t_df[t_df["type"] == "收入"]["amount"].sum()
             total_expense = t_df[t_df["type"] == "支出"]["amount"].sum()
             balance = total_income - total_expense
@@ -338,17 +336,63 @@ def finance_page():
             col_c.metric("🏦 当前结余 (元)", f"¥ {balance:,.2f}", delta=float(balance))
             
             st.divider()
-            st.markdown("##### 🧾 收支明细账单 (支持表格内直接删除、修改)")
-            edited_t_df = st.data_editor(t_df, num_rows="dynamic", key="trans_table_editor", use_container_width=True)
+            
+            # --- 以下为账单数据预处理核心区 ---
+            # 1. 强制按日期从新到旧排序
+            t_df["date"] = pd.to_datetime(t_df["date"])
+            t_df = t_df.sort_values(by="date", ascending=False)
+            t_df["date"] = t_df["date"].dt.strftime(DATE_FORMAT)
+            
+            # 2. 重新排列列顺序（日期排在第一列，id放最后用于逻辑处理但不显示）
+            col_order = ["date", "type", "project", "amount", "source", "operator", "remarks", "id"]
+            t_df = t_df[col_order]
+
+            # 3. 构建在线筛选工具栏
+            st.markdown("##### 🔍 明细筛选")
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
+                filter_type = st.multiselect("根据收支类型筛选", ["收入", "支出"], default=["收入", "支出"])
+            with f_col2:
+                search_keyword = st.text_input("搜索特定内容 (支持项目名称/登记人/备注匹配)")
+
+            # 应用筛选条件
+            filtered_df = t_df[t_df["type"].isin(filter_type)]
+            if search_keyword:
+                filtered_df = filtered_df[
+                    filtered_df["project"].astype(str).str.contains(search_keyword, case=False, na=False) |
+                    filtered_df["operator"].astype(str).str.contains(search_keyword, case=False, na=False) |
+                    filtered_df["remarks"].astype(str).str.contains(search_keyword, case=False, na=False)
+                ]
+
+            st.markdown("##### 🧾 收支明细账单 (支持双击修改、选中按 Delete 删除)")
+            
+            # 4. 渲染数据表，隐藏原生序号列(hide_index)，并在列配置中彻底隐藏 id 列
+            edited_t_df = st.data_editor(
+                filtered_df,
+                num_rows="dynamic",
+                key="trans_table_editor",
+                use_container_width=True,
+                hide_index=True,  # 隐藏左侧默认序号列
+                column_config={
+                    "id": None,  # 将后台 id 列隐藏
+                    "date": st.column_config.TextColumn("日期 (YYYY-MM-DD)", required=True),
+                    "type": st.column_config.SelectboxColumn("类型", options=["收入", "支出"], required=True),
+                    "project": "项目/事项",
+                    "amount": st.column_config.NumberColumn("金额 (元)", format="%.2f", required=True),
+                    "source": "资金/打款来源",
+                    "operator": "登记人",
+                    "remarks": "备注"
+                }
+            )
             
             if st.button("保存明细账单更改"):
-                # 核心修复：对比新旧表格，提取被删除的行ID，并在数据库中彻底移除
-                deleted_ids = set(t_df["id"]) - set(edited_t_df["id"])
+                # 对比筛选视图前后的 id，执行物理删除
+                deleted_ids = set(filtered_df["id"]) - set(edited_t_df["id"])
                 for d_id in deleted_ids:
                     try:
                         supabase.table("transactions").delete().eq("id", int(d_id)).execute()
-                    except Exception as e:
-                        st.warning(f"删除行数据时出现警告: {e}")
+                    except:
+                        pass
                         
                 save_transactions(edited_t_df)
                 st.success("收支明细数据已更新！正在重新计算报表...")
