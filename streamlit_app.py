@@ -66,7 +66,6 @@ def save_data(df):
     except Exception as e:
         st.error(f"保存样品数据失败: {e}")
 
-# --- 财务流水数据处理 ---
 def load_transactions():
     """从 Supabase 加载财务流水数据"""
     try:
@@ -154,21 +153,20 @@ def login_page():
                 st.error("用户名或密码错误。")
 
 def scientific_staff_page():
-    """科研页面"""
+    """科研页面 - 新增支出流水权限"""
     st.title(f"科研业务管理 - 欢迎，{st.session_state.username}")
     df = load_data()
-    tab1, tab2, tab3 = st.tabs(["🆕 样品录入", "📋 样品概览", "📁 查看上传文件"])
+    # 新增了第四个 Tab：支出报销登记
+    tab1, tab2, tab3, tab4 = st.tabs(["🆕 样品录入", "📋 样品概览", "📁 查看上传文件", "💸 支出流水登记"])
 
     with tab1:
         st.subheader("录入新样品接收情况")
         with st.form("new_sample_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                # 优化1：时间可直接手动修改和输入
                 current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M")
                 reception_time = st.text_input("接收时间 (可直接修改)", value=current_time_str)
                 
-                # 优化2：寄样人姓名记忆库
                 existing_senders = [s for s in df["sender"].unique() if str(s).strip() != ""] if not df.empty else []
                 sender_options = existing_senders + ["➕ 新增寄样人 (手动输入)"]
                 selected_sender = st.selectbox("选择寄样人", sender_options)
@@ -198,7 +196,7 @@ def scientific_staff_page():
                     
                     new_data = {
                         "id": int(df["id"].max() + 1) if not df.empty else 1,
-                        "reception_date": reception_time,  # 直接存入手动修改的时间字符串
+                        "reception_date": reception_time,
                         "sender": sender, "sample_type": sample_type, "quantity": quantity,
                         "progress": progress, "requirements": requirements, "completion_date": "", 
                         "invoice_status": "未开具", "payment_status": "否", "list_status": "未开具",
@@ -206,13 +204,20 @@ def scientific_staff_page():
                     }
                     df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
                     save_data(df)
-                    st.success("记录已保存！")
+                    st.success("样品记录已保存！")
                     st.rerun()
 
     with tab2:
         st.subheader("所有样品状态概览与编辑")
         edited_df = st.data_editor(df, num_rows="dynamic", key="sci_editor")
         if st.button("保存更改"):
+            # 同样修复样品表的删除逻辑
+            deleted_ids = set(df["id"]) - set(edited_df["id"])
+            for d_id in deleted_ids:
+                try:
+                    supabase.table("samples").delete().eq("id", int(d_id)).execute()
+                except:
+                    pass
             save_data(edited_df)
             st.success("更改已保存。")
             st.rerun()
@@ -223,9 +228,46 @@ def scientific_staff_page():
         if sample_id:
             row = df[df["id"] == sample_id].iloc[0]
             display_uploaded_files(row["uploaded_files"])
+            
+    # 新增：分配给科研人员的支出登记专属区域
+    with tab4:
+        st.subheader("💸 登记业务支出流水")
+        st.info("您在此处登记的支出记录将直接同步至财务总报表。")
+        t_df = load_transactions()
+        
+        with st.form("sci_expense_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                t_date = st.date_input("支出日期", value=date.today())
+                t_project = st.text_input("支出项目 / 事项")
+                t_amount = st.number_input("金额 (元)", min_value=0.0, step=100.0)
+            
+            with col2:
+                t_source = st.text_input("资金来源/支付账户 (如: 某对公账户/支付宝)")
+                t_operator = st.text_input("登记人", value=st.session_state.username)
+                t_remarks = st.text_area("备注信息")
+                    
+            submitted = st.form_submit_button("提交【支出】记录")
+            
+            if submitted:
+                new_id = int(t_df["id"].max() + 1) if not t_df.empty and "id" in t_df.columns else 1
+                new_record = {
+                    "id": new_id,
+                    "type": "支出",
+                    "date": t_date.strftime(DATE_FORMAT),
+                    "project": t_project,
+                    "amount": float(t_amount),
+                    "source": t_source,
+                    "operator": t_operator,
+                    "remarks": t_remarks
+                }
+                t_df = pd.concat([t_df, pd.DataFrame([new_record])], ignore_index=True)
+                save_transactions(t_df)
+                st.success(f"成功登记一笔 {t_amount} 元的【支出】流水！")
+                st.rerun()
 
 def finance_page():
-    """财务页面 - 业务流水与报表功能"""
+    """财务页面 - 修复了报表删除不同步的问题"""
     st.title(f"财务管理 - 欢迎，{st.session_state.username}")
     tab1, tab2, tab3 = st.tabs(["📝 样品账单待办", "💰 收支流水登记", "📊 总财务报表"])
 
@@ -296,12 +338,20 @@ def finance_page():
             col_c.metric("🏦 当前结余 (元)", f"¥ {balance:,.2f}", delta=float(balance))
             
             st.divider()
-            st.markdown("##### 🧾 收支明细账单 (支持表格内直接修改)")
+            st.markdown("##### 🧾 收支明细账单 (支持表格内直接删除、修改)")
             edited_t_df = st.data_editor(t_df, num_rows="dynamic", key="trans_table_editor", use_container_width=True)
             
             if st.button("保存明细账单更改"):
+                # 核心修复：对比新旧表格，提取被删除的行ID，并在数据库中彻底移除
+                deleted_ids = set(t_df["id"]) - set(edited_t_df["id"])
+                for d_id in deleted_ids:
+                    try:
+                        supabase.table("transactions").delete().eq("id", int(d_id)).execute()
+                    except Exception as e:
+                        st.warning(f"删除行数据时出现警告: {e}")
+                        
                 save_transactions(edited_t_df)
-                st.success("收支明细数据已更新！")
+                st.success("收支明细数据已更新！正在重新计算报表...")
                 st.rerun()
         else:
             st.info("当前暂无流水记录，请在【收支流水登记】模块录入数据。")
