@@ -27,9 +27,9 @@ DATE_FORMAT = "%Y-%m-%d"
 def check_login(username, password):
     """身份验证检查"""
     users = {
-        "wangxiaoliang": {"password": "Yujia@003", "role": "scientific"},
-        "pengyutao": {"password": "Yujia@002", "role": "scientific"},
-        "zhoucuiying": {"password": "Yujia@001", "role": "finance"}
+        "wangxiaoliang": {"password": "wxl123", "role": "scientific"},
+        "pengyutao": {"password": "pyt123", "role": "scientific"},
+        "zhoucuiying": {"password": "zcy123", "role": "finance"}
     }
     if username in users and users[username]["password"] == password:
         return users[username]["role"]
