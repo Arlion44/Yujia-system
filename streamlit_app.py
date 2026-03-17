@@ -168,23 +168,47 @@ def scientific_staff_page():
                 current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M")
                 reception_time = st.text_input("接收时间 (可直接修改)", value=current_time_str)
                 
+                # 寄样人记忆选择
                 existing_senders = [s for s in df["sender"].unique() if str(s).strip() != ""] if not df.empty else []
                 sender_options = existing_senders + ["➕ 新增寄样人 (手动输入)"]
                 selected_sender = st.selectbox("选择寄样人", sender_options)
-                
                 if selected_sender == "➕ 新增寄样人 (手动输入)":
                     sender = st.text_input("请输入新寄样人姓名")
                 else:
                     sender = selected_sender
 
-                # 新增寄样单位
-                sender_company = st.text_input("寄样单位 (选填)", placeholder="例如：某某大学、某某医院...")
-                sample_type = st.text_input("样品类型")
+                # 寄样单位记忆选择
+                existing_companies = [s for s in df["sender_company"].unique() if str(s).strip() != ""] if (not df.empty and "sender_company" in df.columns) else []
+                company_options = existing_companies + ["➕ 新增寄样单位 (手动输入)"]
+                selected_company = st.selectbox("选择寄样单位 (选填)", company_options)
+                if selected_company == "➕ 新增寄样单位 (手动输入)":
+                    sender_company = st.text_input("请输入新寄样单位", placeholder="例如：某某大学、某某医院...")
+                else:
+                    sender_company = selected_company
+
+                # 样品类型记忆选择
+                existing_types = [s for s in df["sample_type"].unique() if str(s).strip() != ""] if not df.empty else []
+                type_options = existing_types + ["➕ 新增样品类型 (手动输入)"]
+                selected_type = st.selectbox("选择样品类型", type_options)
+                if selected_type == "➕ 新增样品类型 (手动输入)":
+                    sample_type = st.text_input("请输入新样品类型")
+                else:
+                    sample_type = selected_type
+
                 quantity = st.number_input("样品数量", min_value=1, step=1)
+                
             with col2:
                 progress = st.selectbox("当前进度", ["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"])
-                requirements = st.text_area("样品处理要求/注意事项")
-            
+                
+                # 处理要求记忆选择
+                existing_reqs = [s for s in df["requirements"].unique() if str(s).strip() != ""] if not df.empty else []
+                req_options = existing_reqs + ["➕ 新增处理要求/注意事项 (手动输入)"]
+                selected_req = st.selectbox("选择处理要求/注意事项", req_options)
+                if selected_req == "➕ 新增处理要求/注意事项 (手动输入)":
+                    requirements = st.text_area("请输入新处理要求/注意事项")
+                else:
+                    requirements = selected_req
+
             uploaded_files = st.file_uploader("上传相关文件", accept_multiple_files=True)
             submit_sample = st.form_submit_button("保存新样品记录")
             
@@ -202,10 +226,10 @@ def scientific_staff_page():
                         "id": int(df["id"].max() + 1) if not df.empty else 1,
                         "reception_date": reception_time,
                         "sender": sender,
-                        "sender_company": sender_company, # 写入寄样单位
+                        "sender_company": sender_company,
                         "sample_type": sample_type, "quantity": quantity,
                         "progress": progress, "requirements": requirements, "completion_date": "", 
-                        "invoice_status": "未开具", "invoice_amount": "", "payment_status": "否", "list_status": "未开具", # 初始化金额列为空
+                        "invoice_status": "未开具", "invoice_amount": "", "payment_status": "否", "list_status": "未开具", 
                         "uploaded_files": json.dumps(new_files_list)
                     }
                     df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
@@ -214,18 +238,19 @@ def scientific_staff_page():
                     st.rerun()
 
     with tab2:
-        st.subheader("所有样品状态概览与编辑")
+        st.subheader("所有样品状态概览与编辑 (双击单元格即可修改)")
+        # 移除限制，允许直接编辑所有文本和数字列
         edited_df = st.data_editor(
             df, 
             num_rows="dynamic", 
             key="sci_editor",
             column_config={
-                "id": "序号 ID",
-                "reception_date": st.column_config.TextColumn("接收时间", disabled=True),
-                "sender": st.column_config.TextColumn("寄样人", disabled=True),
+                "id": st.column_config.NumberColumn("序号 ID", disabled=True), # 仅 ID 禁用修改
+                "reception_date": st.column_config.TextColumn("接收时间"),
+                "sender": st.column_config.TextColumn("寄样人"),
                 "sender_company": st.column_config.TextColumn("寄样单位"),
                 "sample_type": st.column_config.TextColumn("样品类型"),
-                "quantity": st.column_config.NumberColumn("样品数量", disabled=True),
+                "quantity": st.column_config.NumberColumn("样品数量"),
                 "progress": st.column_config.SelectboxColumn("当前进度", options=["已接收", "预处理中", "检测中", "数据分析中", "已完成", "出现问题"]),
                 "requirements": st.column_config.TextColumn("处理要求/注意事项"),
                 "completion_date": st.column_config.TextColumn("完成时间"),
@@ -233,7 +258,7 @@ def scientific_staff_page():
                 "invoice_amount": st.column_config.TextColumn("开票金额 (元)"),
                 "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]),
                 "list_status": st.column_config.SelectboxColumn("清单状态", options=["未开具", "已开具", "无需开具"]),
-                "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True)
+                "uploaded_files": st.column_config.TextColumn("已上传文件 (代码)", disabled=True) # 文件代码不可乱改
             }
         )
         if st.button("保存更改"):
@@ -271,12 +296,10 @@ def scientific_staff_page():
                 t_operator = st.text_input("登记人", value=st.session_state.username)
                 t_remarks = st.text_area("备注信息")
             
-            # 新增流水凭证上传组件
             uploaded_invoices = st.file_uploader("上传支出发票/凭证 (选填)", accept_multiple_files=True, key="sci_inv")
             submitted = st.form_submit_button("提交【支出】记录")
             
             if submitted:
-                # 处理流水凭证上传
                 inv_files_list = []
                 for file in uploaded_invoices:
                     unique_filename = f"trans_{st.session_state.username}_{file.size}_{file.name}"
@@ -293,7 +316,7 @@ def scientific_staff_page():
                     "source": t_source,
                     "operator": t_operator,
                     "remarks": t_remarks,
-                    "invoice_files": json.dumps(inv_files_list) # 保存凭证 JSON 列表
+                    "invoice_files": json.dumps(inv_files_list)
                 }
                 t_df = pd.concat([t_df, pd.DataFrame([new_record])], ignore_index=True)
                 save_transactions(t_df)
@@ -307,21 +330,21 @@ def finance_page():
 
     with tab1:
         df = load_data()
-        st.subheader("📝 财务待办清单 (针对科研样品)")
+        st.subheader("📝 财务待办清单 (针对科研样品，双击单元格直接修改)")
         pending_df = df[(df["invoice_status"] == "未开具") | (df["list_status"] == "未开具") | (df["payment_status"] == "否")]
         edited_finance_df = st.data_editor(
             pending_df, 
             key="fin_editor",
             column_config={
-                "id": "序号 ID",
-                "reception_date": st.column_config.TextColumn("接收时间", disabled=True),
-                "sender": st.column_config.TextColumn("寄样人", disabled=True),
-                "sender_company": st.column_config.TextColumn("寄样单位", disabled=True),
-                "sample_type": st.column_config.TextColumn("样品类型", disabled=True),
-                "quantity": st.column_config.NumberColumn("样品数量", disabled=True),
-                "progress": st.column_config.TextColumn("当前进度", disabled=True),
-                "requirements": st.column_config.TextColumn("处理要求", disabled=True),
-                "completion_date": st.column_config.TextColumn("完成时间", disabled=True),
+                "id": st.column_config.NumberColumn("序号 ID", disabled=True),
+                "reception_date": st.column_config.TextColumn("接收时间"),
+                "sender": st.column_config.TextColumn("寄样人"),
+                "sender_company": st.column_config.TextColumn("寄样单位"),
+                "sample_type": st.column_config.TextColumn("样品类型"),
+                "quantity": st.column_config.NumberColumn("样品数量"),
+                "progress": st.column_config.TextColumn("当前进度"),
+                "requirements": st.column_config.TextColumn("处理要求"),
+                "completion_date": st.column_config.TextColumn("完成时间"),
                 "invoice_status": st.column_config.SelectboxColumn("发票状态", options=["未开具", "已开具", "无需开具"]),
                 "invoice_amount": st.column_config.TextColumn("开票金额 (元)"),
                 "payment_status": st.column_config.SelectboxColumn("是否收款", options=["否", "是"]),
@@ -357,7 +380,6 @@ def finance_page():
                     t_operator = st.session_state.username
                     t_remarks = st.text_area("回款备注")
                     
-            # 同样在财务端登记也可以上传发票凭证
             uploaded_invoices = st.file_uploader("上传发票/凭证 (选填)", accept_multiple_files=True, key="fin_inv")
             submitted = st.form_submit_button(f"提交【{trans_type}】记录")
             
@@ -405,7 +427,6 @@ def finance_page():
             t_df = t_df.sort_values(by="date", ascending=False)
             t_df["date"] = t_df["date"].dt.strftime(DATE_FORMAT)
             
-            # 将 invoice_files 加入显示顺序
             col_order = ["date", "type", "project", "amount", "source", "operator", "remarks", "invoice_files", "id"]
             t_df = t_df[col_order]
 
@@ -424,7 +445,7 @@ def finance_page():
                     filtered_df["remarks"].astype(str).str.contains(search_keyword, case=False, na=False)
                 ]
 
-            st.markdown("##### 🧾 收支明细账单 (支持双击修改、选中按 Delete 删除)")
+            st.markdown("##### 🧾 收支明细账单 (双击表格内任意单元格即可修改，选中行按 Delete 删除)")
             
             edited_t_df = st.data_editor(
                 filtered_df,
@@ -436,11 +457,11 @@ def finance_page():
                     "id": None,  
                     "date": st.column_config.TextColumn("发生日期", required=True),
                     "type": st.column_config.SelectboxColumn("款项类型", options=["收入", "支出"], required=True),
-                    "project": "项目/事项",
+                    "project": st.column_config.TextColumn("项目/事项"),
                     "amount": st.column_config.NumberColumn("金额 (元)", format="%.2f", required=True),
-                    "source": "资金/打款来源",
-                    "operator": "登记人",
-                    "remarks": "备注信息",
+                    "source": st.column_config.TextColumn("资金/打款来源"),
+                    "operator": st.column_config.TextColumn("登记人"),
+                    "remarks": st.column_config.TextColumn("备注信息"),
                     "invoice_files": st.column_config.TextColumn("发票/凭证 (代码)", disabled=True)
                 }
             )
@@ -457,7 +478,6 @@ def finance_page():
                 st.success("收支明细数据已更新！正在重新计算报表...")
                 st.rerun()
 
-            # 提供专门的区域用来查看/下载流水凭证
             st.divider()
             st.markdown("##### 🧾 查看或下载流水发票/凭证")
             trans_id = st.selectbox("选择一笔流水记录的内部 ID 查看凭证附件", filtered_df["id"].unique(), index=None)
