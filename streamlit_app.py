@@ -27,9 +27,9 @@ DATE_FORMAT = "%Y-%m-%d"
 def check_login(username, password):
     """身份验证检查"""
     users = {
-        "wxl": {"password": "123", "role": "scientific"},
-        "pyt": {"password": "123", "role": "scientific"},
-        "zcy": {"password": "123", "role": "finance"}
+        "wangxiaoliang": {"password": "Yujia@003", "role": "scientific"},
+        "pengyutao": {"password": "Yujia@002", "role": "scientific"},
+        "zhoucuiying": {"password": "Yujia@001", "role": "finance"}
     }
     if username in users and users[username]["password"] == password:
         return users[username]["role"]
@@ -213,7 +213,7 @@ def scientific_staff_page():
             deleted_ids = set(df["id"]) - set(edited_df["id"])
             for d_id in deleted_ids:
                 try:
-                    supabase.table("samples").delete().eq("id", int(d_id)).execute()
+                    supabase.table("samples").delete().eq("id", int(float(d_id))).execute()
                 except:
                     pass
             save_data(edited_df)
@@ -325,7 +325,6 @@ def finance_page():
         t_df = load_transactions()
         
         if not t_df.empty:
-            # 数据总览面板计算
             total_income = t_df[t_df["type"] == "收入"]["amount"].sum()
             total_expense = t_df[t_df["type"] == "支出"]["amount"].sum()
             balance = total_income - total_expense
@@ -337,17 +336,13 @@ def finance_page():
             
             st.divider()
             
-            # --- 以下为账单数据预处理核心区 ---
-            # 1. 强制按日期从新到旧排序
             t_df["date"] = pd.to_datetime(t_df["date"])
             t_df = t_df.sort_values(by="date", ascending=False)
             t_df["date"] = t_df["date"].dt.strftime(DATE_FORMAT)
             
-            # 2. 重新排列列顺序（日期排在第一列，id放最后用于逻辑处理但不显示）
             col_order = ["date", "type", "project", "amount", "source", "operator", "remarks", "id"]
             t_df = t_df[col_order]
 
-            # 3. 构建在线筛选工具栏
             st.markdown("##### 🔍 明细筛选")
             f_col1, f_col2 = st.columns(2)
             with f_col1:
@@ -355,7 +350,6 @@ def finance_page():
             with f_col2:
                 search_keyword = st.text_input("搜索特定内容 (支持项目名称/登记人/备注匹配)")
 
-            # 应用筛选条件
             filtered_df = t_df[t_df["type"].isin(filter_type)]
             if search_keyword:
                 filtered_df = filtered_df[
@@ -366,15 +360,14 @@ def finance_page():
 
             st.markdown("##### 🧾 收支明细账单 (支持双击修改、选中按 Delete 删除)")
             
-            # 4. 渲染数据表，隐藏原生序号列(hide_index)，并在列配置中彻底隐藏 id 列
             edited_t_df = st.data_editor(
                 filtered_df,
                 num_rows="dynamic",
                 key="trans_table_editor",
                 use_container_width=True,
-                hide_index=True,  # 隐藏左侧默认序号列
+                hide_index=True,  
                 column_config={
-                    "id": None,  # 将后台 id 列隐藏
+                    "id": None,  
                     "date": st.column_config.TextColumn("日期 (YYYY-MM-DD)", required=True),
                     "type": st.column_config.SelectboxColumn("类型", options=["收入", "支出"], required=True),
                     "project": "项目/事项",
@@ -386,11 +379,10 @@ def finance_page():
             )
             
             if st.button("保存明细账单更改"):
-                # 对比筛选视图前后的 id，执行物理删除
                 deleted_ids = set(filtered_df["id"]) - set(edited_t_df["id"])
                 for d_id in deleted_ids:
                     try:
-                        supabase.table("transactions").delete().eq("id", int(d_id)).execute()
+                        supabase.table("transactions").delete().eq("id", int(float(d_id))).execute()
                     except:
                         pass
                         
@@ -401,7 +393,7 @@ def finance_page():
             st.info("当前暂无流水记录，请在【收支流水登记】模块录入数据。")
 
 # ==========================================
-# --- 4. 应用程序主入口 ---
+# --- 4. 应用程序主入口 (全新导航逻辑) ---
 # ==========================================
 if __name__ == "__main__":
     if "logged_in" not in st.session_state:
@@ -425,7 +417,14 @@ if __name__ == "__main__":
             st.session_state.role = None
             st.rerun()
 
+        # --- 核心修改：使用原生 st.navigation 注册页面 ---
+        # 即使只有单页面，使用该方法也能有效让浏览器接管页面历史记录
         if st.session_state.role == "scientific":
-            scientific_staff_page()
+            sci_page = st.Page(scientific_staff_page, title="科研工作台", icon="🔬")
+            pg = st.navigation([sci_page])
+            pg.run()
+            
         elif st.session_state.role == "finance":
-            finance_page()
+            fin_page = st.Page(finance_page, title="财务工作台", icon="💰")
+            pg = st.navigation([fin_page])
+            pg.run()
