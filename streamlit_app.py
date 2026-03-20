@@ -225,7 +225,7 @@ def login_page():
     """, unsafe_allow_html=True)
 
     # === Logo与标题部分 ===
-    logo_url = "https://hporhdgbqajajdbefynt.supabase.co/storage/v1/object/public/Yujia/unnamed.jpg"
+    logo_url = "https://hporhdgbqajajdbefynt.supabase.co/storage/v1/object/public/Yujia/logo.jpg"
     st.markdown(f"""
         <div style="text-align: center; margin-top: 2rem;">
             <div class="logo-gradient-container">
