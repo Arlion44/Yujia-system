@@ -142,7 +142,7 @@ def login_page():
         <style>
             .watermark { 
                 fill: white; 
-                font-size: 24px; 
+                font-size: 48px; 
                 opacity: 0.3; /* 水印透明度 */
                 text-anchor: middle;
             }
