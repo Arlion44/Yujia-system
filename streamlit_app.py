@@ -130,12 +130,12 @@ def display_uploaded_files(files_json):
 # ==========================================
 
 def login_page():
-    """登录界面 (已应用天蓝色背景与Logo融合技术)"""
+    """登录界面 (已应用春天嫩绿色背景与Logo径向渐变融合技术)"""
     st.markdown("""
         <style>
-        /* 1. 全屏背景颜色：天蓝色 */
+        /* 1. 全屏背景颜色：春天嫩绿色 */
         .stApp {
-            background-color: #87CEEB !important; /* 天蓝色 SkyBlue */
+            background-color: #D1FFBB !important; /* 春天嫩绿色 Spring-bud Green */
             background-image: none !important; /* 确保移除任何背景图片 */
         }
         
@@ -151,7 +151,7 @@ def login_page():
             font-size: 72px; 
             font-family: "楷体", "KaiTi", serif;
             font-weight: bold;
-            margin-top: 10px; /* 紧贴 Logo 下方 */
+            margin-top: -10px; /* 紧贴 Logo 下方，略微上移以配合渐变 */
             margin-bottom: 50px;
             white-space: nowrap; 
             text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.5); /* 增加白色阴影提升可读性 */
@@ -199,14 +199,27 @@ def login_page():
             transform: translateY(3px) !important;
         }
 
-        /* 7. Logo 融合技术：去除图片白色背景 */
-        .merged-logo {
-            width: 320px;
-            /* 核心：将图片与天蓝色背景进行正片叠底，使白色变透明 */
-            mix-blend-mode: multiply; 
-            display: block;
+        /* 7. Logo 径向渐变容器：实现向四周逐渐稀释过度 */
+        .logo-gradient-container {
+            width: 380px; /* 容器稍大于 Logo 宽度，以展示完整过度 */
+            height: auto;
             margin-left: auto;
             margin-right: auto;
+            /* 核心：径向渐变，从中心白色逐渐过度到完全透明 */
+            background: radial-gradient(circle, rgba(255,255,255,1) 30%, rgba(255,255,255,0.7) 45%, rgba(255,255,255,0) 60%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px; /* 增加内边距，让过渡区域更自然 */
+            border-radius: 50%; /* 圆形容器，使渐变过度更符合心理预期 */
+        }
+
+        /* 8. Logo 混合模式：去除图片白色背景 */
+        .merged-logo {
+            width: 320px;
+            /* 核心：将图片与白色渐变背景进行正片叠底，图片白色核心清晰可见，边缘随渐变变透明 */
+            mix-blend-mode: multiply; 
+            display: block;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -215,7 +228,9 @@ def login_page():
     logo_url = "https://hporhdgbqajajdbefynt.supabase.co/storage/v1/object/public/Yujia/unnamed.jpg"
     st.markdown(f"""
         <div style="text-align: center; margin-top: 2rem;">
-            <img src="{logo_url}" class="merged-logo" />
+            <div class="logo-gradient-container">
+                <img src="{logo_url}" class="merged-logo" />
+            </div>
             <div class='login-title'>玉佳生物科研业务管理系统</div>
         </div>
     """, unsafe_allow_html=True)
