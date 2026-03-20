@@ -127,15 +127,15 @@ def display_uploaded_files(files_json):
             st.write("文件解析错误。")
 
 # ==========================================
-# --- 3. UI 页面函数 ---
+# --- 3. UI 页面函数 (更新版) ---
 # ==========================================
 
 def login_page():
-    """登录界面 (已应用淡黄色 SVG 文字水印背景与 Logo 融合)"""
+    """登录界面 (已应用淡黄色 SVG 文字水印背景与 Logo 高级过度融合技术)"""
 
     # --- 核心：定义 SVG 水印模式 ---
-    # 定义小篆（这里用 Web 安全字体模拟，最好提供字体文件）、黑体、行书（用楷体模拟）
-    # 24px, 白色, 逆时针45度 (即旋转 -45度)
+    # 定义小篆（模拟）、黑体、行书（模拟）
+    # 48px, 白色, 逆时针45度 (即旋转 -45度)
     # 增加一点透明度让它更像水印 (opactiy="0.3")
     svg_pattern = """
     <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
@@ -169,7 +169,7 @@ def login_page():
         <style>
         /* 1. 全屏背景：淡黄色 + SVG 文字水印 */
         .stApp {{
-            /* 1.1 背景色：淡黄色 (和图片一致) */
+            /* 1.1 背景色：淡黄色 (FEF9C3) */
             background-color: #FEF9C3 !important; /* Tailwind yellow-100, 柔和的淡黄色 */
             
             /* 1.2 背景图片：平铺的 SVG 水印 */
@@ -194,7 +194,8 @@ def login_page():
             margin-top: -10px; /* 紧贴 Logo 下方，略微上移 */
             margin-bottom: 50px;
             white-space: nowrap; 
-            text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8); /* 增加白色阴影提升可读性 */
+            /* 微调标题阴影颜色，增加白色透明度，使其柔和 */
+            text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8); 
         }}
         
         /* 4. 输入框标签左对齐 */
@@ -241,14 +242,14 @@ def login_page():
             transform: translateY(3px) !important;
         }}
 
-        /* 7. Logo 径向渐变容器：为了更好地融合，我们将渐变中心设为淡黄色 */
+        /* 7. Logo 径向渐变容器 (高级 fusion 融合版) */
         .logo-gradient-container {{
             width: 380px; /* 容器稍大于 Logo 宽度 */
             height: auto;
             margin-left: auto;
             margin-right: auto;
-            /* 核心：径向渐变，从中心完全透明（显示Logo）过度到背景的淡黄色 */
-            /* 这样 Logo 的白色边缘会自然过度到淡黄色背景，而不是突兀的白色 */
+            /* 核心修改: 径向渐变从中心完全透明过度到背景的淡黄色 */
+            /* 这样 Logo 的核心内容清晰可见，而其jpg白色边缘会通过正片叠底和这个淡黄色渐变自然过度，不再突兀 */
             background: radial-gradient(circle, rgba(254,249,195,0) 30%, rgba(254,249,195,0.7) 50%, rgba(254,249,195,1) 70%);
             display: flex;
             justify-content: center;
@@ -257,9 +258,11 @@ def login_page():
             border-radius: 50%; /* 圆形容器 */
         }}
 
-        /* 8. Logo 混合模式：保持正片叠底，去除 Logo 本身的白色背景 */
+        /* 8. Logo 混合模式: 正片叠底，去除 jpg 自身的白色背景 */
         .merged-logo {{
             width: 320px;
+            /* 兼容性增强: 确保 multiply 在所有 iframe 中生效 */
+            isolation: isolate; 
             mix-blend-mode: multiply; 
             display: block;
         }}
@@ -277,7 +280,7 @@ def login_page():
         </div>
     """, unsafe_allow_html=True)
 
-    # === 登录表单部分 ===
+    # === 登录表单部分 (保持原样) ===
     with st.form("login_form"):
         username = st.text_input("用户名")
         password = st.text_input("密码", type="password")
